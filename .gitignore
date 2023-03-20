@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+# Mariana
+/riscv
+/riscv-gnu-toolchain/
