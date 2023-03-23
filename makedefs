@@ -100,8 +100,8 @@ UUID		= $(shell cat /proc/sys/kernel/random/uuid | sed 's/-//g')
 ia32_COMP_PREFIX	:= /usr/bin/x86_64-linux-gnu-
 armv7_COMP_PREFIX	:= /usr/bin/arm-none-eabi-
 armv8_COMP_PREFIX	:= /usr/bin/aarch64-linux-gnu-
-rv32_COMP_PREFIX	:= /usr/local/rv32/bin/riscv32-unknown-linux-gnu-
-rv64_COMP_PREFIX	:= /usr/local/rv64/bin/riscv64-unknown-linux-gnu-
+rv32_COMP_PREFIX	:= /home/larissagr/riscv_fin/bin/riscv32-unknown-linux-gnu-
+rv64_COMP_PREFIX	:= /home/larissagr/Documentos/UFSC/UFSC2023/SO2/riscv64/bin/riscv64-unknown-linux-gnu-
 COMP_PREFIX		= $($(ARCH)_COMP_PREFIX)
 
 # Architecture specifics
@@ -193,10 +193,10 @@ cortex_IMG_SUFFIX	:= .img
 endif
 
 ifeq ($(MMOD),sifive_e)
-riscv_CC_FLAGS		:= -march=rv32gc -mabi=ilp32f -Wl, -mno-relax
-riscv_AS_FLAGS		:= -march=rv32gc -mabi=ilp32f
-riscv_LD_FLAGS		:= -m elf32lriscv_ilp32f --no-relax
-riscv_EMULATOR		= qemu-system-riscv32 $(QEMU_DEBUG) -machine sifive_e -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
+riscv_CC_FLAGS		:= -march=rv64gc -mabi=lp64f -Wl, -mno-relax
+riscv_AS_FLAGS		:= -march=rv64gc -mabi=lp64f
+riscv_LD_FLAGS		:= -m elf64lriscv_lp64 --no-relax
+riscv_EMULATOR		= qemu-system-riscv64 $(QEMU_DEBUG) -machine sifive_e -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
 riscv_DEBUGGER		:= $(COMP_PREFIX)gdb
 riscv_FLASHER		:= 
 riscv_MAGIC		:= --nmagic
@@ -205,12 +205,12 @@ riscv_DATA_NAME		:= .data
 riscv_IMG_SUFFIX	:= .img
 endif
 
-ifeq ($(MMOD),sifive_u)
+ifeq ($(MMOD),sifive_e)
 ifeq ($(ARCH),rv64)
 riscv_CC_FLAGS		:= -march=rv64gc -mabi=lp64d -Wl, -mno-relax -mcmodel=medany
 riscv_AS_FLAGS		:= -march=rv64gc -mabi=lp64d
 riscv_LD_FLAGS		:= -m elf64lriscv_lp64f --no-relax
-riscv_EMULATOR		= qemu-system-riscv64 $(QEMU_DEBUG) -machine sifive_u -smp 2 -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
+riscv_EMULATOR		= qemu-system-riscv64 $(QEMU_DEBUG) -machine sifive_e -smp 1 -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
 else
 riscv_CC_FLAGS      := -march=rv32gc -mabi=ilp32d -Wl, -mno-relax
 riscv_AS_FLAGS      := -march=rv32gc -mabi=ilp32d
