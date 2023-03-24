@@ -7,20 +7,14 @@ int main() {
     OStream cout;
 
     // Configure SPI
-    SPI_E spi(0x10000000);
-    spi.config(50000000, 0, 0, 1000000, 8);
+    SPI_E spi;
 
-    // Write data
-    const char * data_out = "Hello, world!";
-    spi.write(data_out, strlen(data_out));
+    spi.put(1);
 
-    // Read data
-    char data_in[256];
-    int count = spi.read(data_in, sizeof(data_in));
-    data_in[count] = '\0';
+    int count = spi.get();
 
     // Print data
-    cout << "Data received: " << data_in << endl;
+    cout << "Data received: " << count << endl;
 
     return 0;
 }

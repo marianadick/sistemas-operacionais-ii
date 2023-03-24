@@ -41,8 +41,8 @@ public:
         DIV     = 0x80  // Set the SPI clock frequency
     };
 
-    SPI_E(unsigned int base_addr) {
-        base_addr = base_addr;
+    SPI_E() {
+        config(50000000, 0, 0, 1000000, 8);
     }
 
     void config(unsigned int clock, unsigned int protocol, unsigned int mode, unsigned int bit_rate, unsigned int data_bits) {
@@ -82,7 +82,7 @@ public:
 
     int get() {
         // Wait until there is data to read
-        while ((reg(IP) & 0x1) == 0) {}
+        //while ((reg(IP) & 0x1) == 0) {}
 
         // Read the data
         return reg(RXDATA);
@@ -101,7 +101,7 @@ public:
 
     void put(int data) {
         // Wait until there is space to write
-        while ((reg(IP) & 0x2) == 0) {}
+        //while ((reg(IP) & 0x2) == 0) {}
 
         // Write the data
         reg(TXDATA) = data;
@@ -159,7 +159,7 @@ public:
     }
 
 private:
-    static volatile CPU::Reg32 & reg(unsigned int o) { return reinterpret_cast<volatile CPU::Reg32 *>(Memory_Map::UART0_BASE)[o / sizeof(CPU::Reg32)]; 
+    static volatile CPU::Reg32 & reg(unsigned int o) { return reinterpret_cast<volatile CPU::Reg32 *>(Memory_Map::SPI0_BASE)[o / sizeof(CPU::Reg32)]; 
 }
 };
 
