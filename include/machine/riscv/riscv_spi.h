@@ -6,6 +6,10 @@
 #include <architecture/cpu.h>
 #include <machine/spi.h>
 #include <system/memory_map.h>
+#include <utility/ostream.h>
+
+using namespace EPOS;
+OStream cout;
 
 __BEGIN_SYS
 
@@ -38,7 +42,8 @@ public:
         FFMT     = 0x64, // Flash interface timing register
         IE      = 0x70, // Interrupt enable register
         IP      = 0x74, // Interrupt pending register
-        DIV     = 0x80  // Set the SPI clock frequency
+        DIV     = 0x80, // Set the SPI clock frequency
+        DATA    = 0xff << 0
     };
 
     SPI_E() {
@@ -51,48 +56,64 @@ public:
         reg(SCKDIV) = sckdiv;
 
         // Set the SPI mode and control register
-        unsigned int sckmode = ((protocol & 0x7) << 4) | ((mode & 0x3) << 2);
+        unsigned int sckmode =  0x0;
         reg(SCKMODE) = sckmode;
 
-        // Set the chip select ID register
-        reg(CSID) = 0;
-
-        // Set the chip select default register
-        reg(CSDEF) = 0;
-
-        // Set the chip select mode register
-        reg(CSMODE) = 0;
-
-        // Set the delay control register 0
-        reg(DELAY0) = 0;
-
-        // Set the delay control register 1
-        reg(DELAY1) = 0;
+        // Enable loopback mode
+        reg(SCKMODE) |= (1 << 7);
 
         // Set the frame format
-        unsigned int fmt = (data_bits - 1) << 16;
+        //unsigned int fmt = (data_bits - 1) << 16;
+            //reg(FMT) = fmt;
+        unsigned int fmt = 0x0;  // clear all the bits
+        fmt |= (7 << 16);       // set frame size to 8 bits
         reg(FMT) = fmt;
 
-        // Enable interrupts
-        reg(IE) = 0x7;
-
         // Set the SPI clock frequency
-        reg(DIV) = sckdiv;
+        //reg(DIV) = sckdiv;
+        reg(IE) = 0x03;
+        reg(TXMARK) =  0x01;
+        reg(RXMARK) = 0x0;
+        }
+
+    void put(unsigned char data) {
+        // Wait until there is space to write
+        while ((reg(IP) & 0x1) == 0) {}
+
+        // Write the data
+        reg(TXDATA) = data;
     }
 
-    int get() {
+    unsigned char get() {
         // Wait until there is data to read
-        //while ((reg(IP) & 0x1) == 0) {}
+        while ((reg(IP) & 0x2) == 0) {}
 
         // Read the data
-        return reg(RXDATA);
+        unsigned char data = reg(RXDATA);
+        cout << "RXDATA:" << data << endl;
+    
+        return data;
     }
+    /*char get() {
+        // Wait until there is data to read
+        while ((reg(IP) & 0x2) != 0x2) {
+            cout << "IP:" << reg(IP) << endl;
+    
+        }
+        
+        // Read the data
+        int data = reg(RXDATA);
+
+        cout << "RXDATA:" << data << endl;
+    
+        return data;
+    }
+
+    */
 
     bool try_get(int * data) {
         // Check if there is data to read
-        if ((reg(IP) & 0x1) == 0) {
-            return false;
-        }
+        if (!ready_to_get()){return false;}
 
         // Read the data
         *data = reg(RXDATA);
@@ -101,7 +122,8 @@ public:
 
     void put(int data) {
         // Wait until there is space to write
-        //while ((reg(IP) & 0x2) == 0) {}
+        // while ((reg(IP) & 0x2) == 0) {}
+        while (!ready_to_put()) {}
 
         // Write the data
         reg(TXDATA) = data;
@@ -109,12 +131,10 @@ public:
 
     bool try_put(int data) {
         // Check if there is space to write
-        if ((reg(IP) & 0x2) == 0) {
-            return false;
-        }
+        if (!ready_to_put()){return false;}
 
         // Write the data
-        reg(TXDATA) = data;
+        reg(TXDATA) = data & DATA;
         return true;
     }
 
@@ -147,19 +167,21 @@ public:
 
     bool ready_to_get()
     {
-        if (!(reg(IP) & RXWM_MASK))
-            return false;
+        //if (!(reg(IP) & RXWM_MASK))
+          //  return false;
 
-        return true;
+        //return true;
+        return ((reg(IP) & (1 << 0)) != 0);
     }
 
     bool ready_to_put() {
         // Check if TXFIFO is not full
-        return ((reg(TXDATA) & 1) == 0);
+       return ((reg(TXDATA) & 1) == 0);
     }
+    
 
 private:
-    static volatile CPU::Reg32 & reg(unsigned int o) { return reinterpret_cast<volatile CPU::Reg32 *>(Memory_Map::SPI0_BASE)[o / sizeof(CPU::Reg32)]; 
+    static volatile CPU::Reg32 & reg(unsigned int o) { return reinterpret_cast<volatile CPU::Reg32 *>(Memory_Map::QSPI1_BASE)[o / sizeof(CPU::Reg32)]; 
 }
 };
 

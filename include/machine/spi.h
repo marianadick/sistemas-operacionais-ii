@@ -31,11 +31,10 @@ protected:
 public:
     void config(unsigned int clock, unsigned int protocol, unsigned int mode, unsigned int bit_rate, unsigned int data_bits);
 
-    int get();
+    unsigned char get();
     bool try_get(int * data);
-    void put(int data);
+    void put(unsigned char data);
     bool try_put(int data);
-
     int read(char * data, unsigned int max_size);
     int write(const char * data, unsigned int size);
 
