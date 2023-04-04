@@ -84,7 +84,7 @@ void Setup::say_hi()
     kout << "This is EPOS!\n" << endl;
     kout << "Setting up this machine as follows: " << endl;
     kout << "  Mode:         " << ((Traits<Build>::MODE == Traits<Build>::LIBRARY) ? "library" : (Traits<Build>::MODE == Traits<Build>::BUILTIN) ? "built-in" : "kernel") << endl;
-    kout << "  Processor:    " << Traits<Machine>::CPUS << " x RV" << Traits<CPU>::WORD_SIZE << " at " << Traits<CPU>::CLOCK / 1000000 << " MHz (BUS clock = " << Traits<CPU>::CLOCK / 1000000 << " MHz)" << endl;
+    kout << "  Processor:    " << Traits<Machine>::CPUS << " x RV" << Traits<CPU>::WORD_SIZE << " at " << Traits<CPU>::CLOCK / 1000000 << " MHz (BUS clock = " << Traits<Machine>::HFCLK / 1000000 << " MHz)" << endl;
     kout << "  Machine:      SiFive-U" << endl;
     kout << "  Memory:       " << (RAM_TOP + 1 - RAM_BASE) / 1024 << " KB [" << reinterpret_cast<void *>(RAM_BASE) << ":" << reinterpret_cast<void *>(RAM_TOP) << "]" << endl;
     kout << "  User memory:  " << (FREE_TOP - FREE_BASE) / 1024 << " KB [" << reinterpret_cast<void *>(FREE_BASE) << ":" << reinterpret_cast<void *>(FREE_TOP) << "]" << endl;
@@ -123,7 +123,7 @@ using namespace EPOS::S;
 
 void _entry() // machine mode
 {
-    if(CPU::mhartid() != 0)                             // SiFive-U requires 2 cores, so we disable core 1 here
+    if(CPU::mhartid() != 0)                             // SiFive-U always has 2 cores, so we disable CU1 here
         CPU::halt();
 
     CPU::mstatusc(CPU::MIE);                            // disable interrupts (they will be reenabled at Init_End)

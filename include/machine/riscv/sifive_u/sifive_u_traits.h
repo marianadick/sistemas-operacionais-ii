@@ -17,7 +17,14 @@ protected:
 template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
 public:
+    // Value to be used for undefined addresses
     static const unsigned int NOT_USED          = 0xffffffff;
+
+    // Clocks
+    static const unsigned int CLOCK             = 1000000000;                            // CORECLK
+    static const unsigned int HFCLK             =   33330000;                            // FU540-C000 generates all internal clocks from 33.33 MHz hfclk driven from an external oscillator (HFCLKIN) or crystal (HFOSCIN) input, selected by input HFXSEL.
+    static const unsigned int RTCCLK            =    1000000;                            // The CPU real time clock (rtcclk) runs at 1 MHz and is driven from input pin RTCCLKIN. This should be connected to an external oscillator.
+    static const unsigned int TLCLK             = CLOCK / 2;                            // L2 cache and peripherals such as UART, SPI, I2C, and PWM operate in a single clock domain (tlclk) running at coreclk/2 rate. There is a low-latency 2:1 crossing between coreclk and tlclk domains.
 
     // Physical Memory
     static const unsigned int RAM_BASE          = 0x80000000;                           // 2 GB
@@ -58,7 +65,7 @@ template <> struct Traits<Timer>: public Traits<Machine_Common>
     static const bool debugged = hysterically_debugged;
 
     static const unsigned int UNITS = 1;
-    static const unsigned int CLOCK = 1000000;
+    static const unsigned int CLOCK = Traits<Machine>::RTCCLK;
 
     // Meaningful values for the timer frequency range from 100 to 10000 Hz. The
     // choice must respect the scheduler time-slice, i. e., it must be higher
@@ -70,13 +77,26 @@ template <> struct Traits<UART>: public Traits<Machine_Common>
 {
     static const unsigned int UNITS = 2;
 
-    static const unsigned int CLOCK = 22729000;
+    static const unsigned int CLOCK = Traits<Machine>::TLCLK;;
 
     static const unsigned int DEF_UNIT = 1;
     static const unsigned int DEF_BAUD_RATE = 115200;
     static const unsigned int DEF_DATA_BITS = 8;
     static const unsigned int DEF_PARITY = 0; // none
     static const unsigned int DEF_STOP_BITS = 1;
+};
+
+template <> struct Traits<SPI>: public Traits<Machine_Common>
+{
+    static const unsigned int UNITS = 3;
+
+    static const unsigned int CLOCK = Traits<Machine>::TLCLK;
+
+    static const unsigned int DEF_UNIT = 0;
+    static const unsigned int DEF_PROTOCOL = 0;
+    static const unsigned int DEF_MODE = 0;
+    static const unsigned int DEF_DATA_BITS = 8;
+    static const unsigned int DEF_BIT_RATE = 250000;
 };
 
 template<> struct Traits<Serial_Display>: public Traits<Machine_Common>

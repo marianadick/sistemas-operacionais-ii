@@ -21,6 +21,7 @@ class Thread
     friend class System;                // for init()
 
 protected:
+    static const bool preemptive = Traits<Thread>::preemptive;
     static const bool reboot = Traits<System>::reboot;
 
     static const unsigned int QUANTUM = Traits<Thread>::QUANTUM;
@@ -42,9 +43,11 @@ public:
     // Thread Priority
     typedef unsigned int Priority;
     enum {
-        HIGH = 0,
-        NORMAL = 15,
-        LOW = 31
+        MAIN   = 0,
+        HIGH   = 1,
+        NORMAL = (unsigned(1) << (sizeof(int) * 8 - 1)) - 4,
+        LOW    = (unsigned(1) << (sizeof(int) * 8 - 1)) - 3,
+        IDLE   = (unsigned(1) << (sizeof(int) * 8 - 1)) - 2
     };
 
     // Thread Queue
@@ -75,8 +78,8 @@ public:
 
     int join();
     void pass();
-    void suspend();
-    void resume();
+    void suspend() { suspend(false); }
+    void resume() { resume(false); }
 
     static Thread * volatile self() { return running(); }
     static void yield();
@@ -92,6 +95,13 @@ protected:
     static void unlock() { CPU::int_enable(); }
     static bool locked() { return CPU::int_disabled(); }
 
+    void suspend(bool locked);
+    void resume(bool unpreemptive);
+
+    static void sleep(Queue * q);
+    static void wakeup(Queue * q);
+    static void wakeup_all(Queue * q);
+
     static void reschedule();
     static void time_slicer(IC::Interrupt_Id interrupt);
 
@@ -106,8 +116,11 @@ protected:
     char * _stack;
     Context * volatile _context;
     volatile State _state;
+    Queue * _waiting;
+    Thread * volatile _joining;
     Queue::Element _link;
 
+    static volatile unsigned int _thread_count;
     static Scheduler_Timer * _timer;
 
 private:
@@ -119,7 +132,7 @@ private:
 
 template<typename ... Tn>
 inline Thread::Thread(int (* entry)(Tn ...), Tn ... an)
-: _state(READY), _link(this, NORMAL)
+: _state(READY), _waiting(0), _joining(0), _link(this, NORMAL)
 {
     constructor_prologue(STACK_SIZE);
     _context = CPU::init_stack(0, _stack + STACK_SIZE, &__exit, entry, an ...);
@@ -128,12 +141,26 @@ inline Thread::Thread(int (* entry)(Tn ...), Tn ... an)
 
 template<typename ... Tn>
 inline Thread::Thread(const Configuration & conf, int (* entry)(Tn ...), Tn ... an)
-: _state(conf.state), _link(this, conf.priority)
+: _state(conf.state), _waiting(0), _joining(0), _link(this, conf.priority)
 {
     constructor_prologue(conf.stack_size);
     _context = CPU::init_stack(0, _stack + conf.stack_size, &__exit, entry, an ...);
     constructor_epilogue(entry, conf.stack_size);
 }
+
+
+// An event handler that triggers a thread (see handler.h)
+class Thread_Handler : public Handler
+{
+public:
+    Thread_Handler(Thread * h) : _handler(h) {}
+    ~Thread_Handler() {}
+
+    void operator()() { _handler->resume(); }
+
+private:
+    Thread * _handler;
+};
 
 __END_SYS
 

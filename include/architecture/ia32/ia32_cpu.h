@@ -584,7 +584,7 @@ private:
     template<typename Head, typename ... Tail>
     static void init_stack_helper(Log_Addr sp, Head head, Tail ... tail) {
         *static_cast<Head *>(sp) = head;
-        init_stack_helper(sp + sizeof(Head), tail ...);
+        init_stack_helper(sp + sizeof(Head *), tail ...);
     }
     static void init_stack_helper(Log_Addr sp) {}
 

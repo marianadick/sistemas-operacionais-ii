@@ -53,11 +53,11 @@ public:
     void config(unsigned int baud_rate, unsigned int data_bits, unsigned int parity, unsigned int stop_bits) {
         reg(TXCTRL) = 1 << 16 | stop_bits | TXEN; // TXCNT = 1, STOP = (stop_bits - 1) << 1
         reg(RXCTRL) = 1 << 16 | RXEN; // RXCNT = 1
-        reg(DIV) = ((Traits<UART>::CLOCK / baud_rate) - 1) & 0xffff;
+        reg(DIV) = ((CLOCK / baud_rate) - 1) & 0xffff;
     }
 
     void config(unsigned int * baud_rate, unsigned int * data_bits, unsigned int * parity, unsigned int * stop_bits) {
-        *baud_rate = Traits<UART>::CLOCK / (reg(DIV) + 1);
+        *baud_rate = CLOCK / (reg(DIV) + 1);
         *data_bits = 8;
         *parity = UART_Common::NONE;
         *stop_bits = ((reg(TXCTRL) & NSTOP) >> 1) + 1;

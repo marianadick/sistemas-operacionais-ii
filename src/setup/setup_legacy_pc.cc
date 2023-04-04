@@ -286,6 +286,8 @@ void Setup::build_lm()
         }
         if(si->lm.sys_code != SYS_CODE)
             db<Setup>(ERR) << "OS code segment address (" << reinterpret_cast<void *>(si->lm.sys_code) << ") does not match the machine's memory map (" << reinterpret_cast<void *>(SYS_CODE) << ")!" << endl;
+        if(si->lm.sys_code != MMU::align_segment(si->lm.sys_code))
+            db<Setup>(ERR) << "OS code segment is not properly aligned!" << endl;
         if(si->lm.sys_code + si->lm.sys_code_size > si->lm.sys_data)
             db<Setup>(ERR) << "OS code segment is too large!" << endl;
         if(si->lm.sys_data != SYS_DATA)
@@ -341,9 +343,18 @@ void Setup::build_lm()
             db<Setup>(WRN) << "APP ELF image has no data segment!" << endl;
             si->lm.app_data = MMU::align_page(APP_DATA);
         }
+        if(Traits<System>::multiheap) { // Application heap in data segment
+            si->lm.app_data_size = MMU::align_page(si->lm.app_data_size);
+            si->lm.app_stack = si->lm.app_data + si->lm.app_data_size;
+            si->lm.app_data_size += MMU::align_page(Traits<Application>::STACK_SIZE);
+            si->lm.app_heap = si->lm.app_data + si->lm.app_data_size;
+            si->lm.app_data_size += MMU::align_page(Traits<Application>::HEAP_SIZE);
+        }
         if(si->lm.has_ext) { // Check for EXTRA data in the boot image
             si->lm.app_extra = si->lm.app_data + si->lm.app_data_size;
             si->lm.app_extra_size = si->bm.img_size - si->bm.extras_offset;
+            if(Traits<System>::multiheap)
+                si->lm.app_extra_size = MMU::align_page(si->lm.app_extra_size);
             si->lm.app_data_size += si->lm.app_extra_size;
         }
     }

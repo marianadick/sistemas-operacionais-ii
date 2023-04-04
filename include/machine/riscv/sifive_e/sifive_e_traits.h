@@ -46,8 +46,8 @@ public:
 
     // Default Sizes and Quantities
     static const unsigned int MAX_THREADS       = 7;
-    static const unsigned int STACK_SIZE        = 640;
-    static const unsigned int HEAP_SIZE         = 512;
+    static const unsigned int STACK_SIZE        = 756;
+    static const unsigned int HEAP_SIZE         = 6144;
 };
 
 template <> struct Traits<IC>: public Traits<Machine_Common>
