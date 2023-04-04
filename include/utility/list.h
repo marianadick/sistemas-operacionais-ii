@@ -1346,6 +1346,7 @@ public:
 
     unsigned long grouped_size() const { return _grouped_size; }
 
+    /* FIRST FIT */ /*
     Element * search_size(unsigned long s) {
         Element * e = head();
         if(sizeof(Object_Type) < sizeof(Element))
@@ -1353,8 +1354,23 @@ public:
         else
             for(; e && (e->size() < s); e = e->next());
         return e;
-    }
-
+    } */
+    
+    /* WORST FIT */ 
+    Element * search_size(unsigned long s) {
+        Element * e = head();
+        Element * worst_e = nullptr;
+        while (e) {
+            // 1º Verifica se o tamanho do bloco livre atual é >= ao tamanho desejado
+            // 2º Verifica se o tamanho do bloco livre atual é o maior encontrado até então
+            // Caso contrário, o "worst block" passa a ser o encontrado
+            if (e->size() >= s && (!worst_e || e->size() > worst_e->size()))
+                worst_e = e;
+            e = e->next();
+        }
+        return worst_e;
+     } 
+    
     void insert_merging(Element * e, Element ** m1, Element ** m2) {
         db<Lists>(TRC) << "Grouping_List::insert_merging(e=" << e << ")" << endl;
 
