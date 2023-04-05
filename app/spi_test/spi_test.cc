@@ -7,39 +7,33 @@ int main() {
     
 
     // Configure SPI
-    SPI_E spi(0x30000000);
-    spi.config(1000000, 0, 0, 8, 8);
+    SPI_E spi;
+    
+    char init_cmd[] = {0x40, 0x00, 0x00, 0x00, 0x00, 0x95, 0xff};
+    spi.write(init_cmd, 7);
+    
+    /*
+    char write_cmd[] = {0x40, 0x00, 0x00, 0x00, 0x00, 0x95}; // Command to write to the first address of the SD card
+    spi.write(write_cmd, 6); // Send the command to the SD card
 
-    // Write data
-    //const char * data_out = "Hello, world!";
-    char a = 'a';
-    spi.put(a);
-    spi.put(a);
-    spi.put(a);
 
-    spi.put(a);
-   
-    // Read data
-    //char data_in[256];
-    //int count = spi.read(data_in, sizeof(data_in));
-    //data_in[count] = '\0';
-    char data_in = 'b';
-    data_in = spi.get();
-    data_in = spi.get();
-    data_in = spi.get();
-    data_in = spi.get();
+    char data1[5] = {0x01,0x01,0x01,0x01,0x01}; // Data to be written to the SD card
+    spi.write(data1, 5); // Send the data to the SD card
     
-    data_in = spi.get();
     
-    data_in = spi.get();
+    */
+    char read_cmd[] = {0x51, 0x00, 0x00, 0x00, 0x00, 0xff};
+    spi.write(read_cmd, 6);
     
-        /* code */
+    char data[530];
+    spi.read(data, 530);
+    /*    
+    char read_cmd[] = {0x51, 0x00, 0x00, 0x00, 0x00, 0xff, 0x00};
+    spi.write(read_cmd, 6);
 
-    cout << "Data received: " << (int)data_in << endl;
-    
-    
-    
-    // Print data
-
+    char data1[406];
+    spi.read(data1, 406);
+    */
     return 0;
+    
 }

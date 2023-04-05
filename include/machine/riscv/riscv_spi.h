@@ -47,19 +47,20 @@ public:
     };
 
     SPI_E() {
-        config(50000000, 0, 0, 1000000, 8);
+        config(0x1312d00, 0, 0, 1000000, 8);
     }
 
     void config(unsigned int clock, unsigned int protocol, unsigned int mode, unsigned int bit_rate, unsigned int data_bits) {
         // Set the clock divisor
         unsigned int sckdiv = clock / bit_rate - 1;
         reg(SCKDIV) = sckdiv;
-
+        
+        //reg(CSID) = 0x01;
         // Set the SPI mode and control register
         unsigned int sckmode =  0x0;
         reg(SCKMODE) = sckmode;
 
-        // Enable loopback mode
+        // Enable loopback mode? -> not right
         reg(SCKMODE) |= (1 << 7);
 
         // Set the frame format
@@ -68,15 +69,17 @@ public:
         unsigned int fmt = 0x0;  // clear all the bits
         fmt |= (7 << 16);       // set frame size to 8 bits
         reg(FMT) = fmt;
-
+        
+        reg(CSMODE) = 0x01;
+        reg(CSID) = 0x00;
         // Set the SPI clock frequency
         //reg(DIV) = sckdiv;
         reg(IE) = 0x03;
-        reg(TXMARK) =  0x01;
+        reg(TXMARK) =  0x1;
         reg(RXMARK) = 0x0;
         }
 
-    void put(unsigned char data) {
+    void put(int data) {
         // Wait until there is space to write
         while ((reg(IP) & 0x1) == 0) {}
 
@@ -84,32 +87,17 @@ public:
         reg(TXDATA) = data;
     }
 
-    unsigned char get() {
+    int get() {
         // Wait until there is data to read
         while ((reg(IP) & 0x2) == 0) {}
 
         // Read the data
-        unsigned char data = reg(RXDATA);
-        cout << "RXDATA:" << data << endl;
-    
-        return data;
-    }
-    /*char get() {
-        // Wait until there is data to read
-        while ((reg(IP) & 0x2) != 0x2) {
-            cout << "IP:" << reg(IP) << endl;
-    
-        }
-        
-        // Read the data
         int data = reg(RXDATA);
-
         cout << "RXDATA:" << data << endl;
     
         return data;
     }
-
-    */
+    
 
     bool try_get(int * data) {
         // Check if there is data to read
@@ -117,24 +105,18 @@ public:
 
         // Read the data
         *data = reg(RXDATA);
+        cout << "RXDATA:" << *data << endl;
+
         return true;
     }
 
-    void put(int data) {
-        // Wait until there is space to write
-        // while ((reg(IP) & 0x2) == 0) {}
-        while (!ready_to_put()) {}
-
-        // Write the data
-        reg(TXDATA) = data;
-    }
 
     bool try_put(int data) {
         // Check if there is space to write
         if (!ready_to_put()){return false;}
 
         // Write the data
-        reg(TXDATA) = data & DATA;
+        reg(TXDATA) = data;
         return true;
     }
 
@@ -167,16 +149,12 @@ public:
 
     bool ready_to_get()
     {
-        //if (!(reg(IP) & RXWM_MASK))
-          //  return false;
-
-        //return true;
-        return ((reg(IP) & (1 << 0)) != 0);
+        return ((reg(IP) & 0x2) != 0);
     }
 
     bool ready_to_put() {
         // Check if TXFIFO is not full
-       return ((reg(TXDATA) & 1) == 0);
+       return (((reg(IP) & 0x1) != 0));
     }
     
 
