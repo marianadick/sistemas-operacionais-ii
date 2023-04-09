@@ -1356,7 +1356,7 @@ public:
         return e;
     } */
     
-    /* WORST FIT */ 
+    /* WORST FIT */
     Element * search_size(unsigned long s) {
         Element * e = head();
         Element * worst_e = nullptr;
@@ -1369,7 +1369,7 @@ public:
             e = e->next();
         }
         return worst_e;
-     } 
+    }
     
     void insert_merging(Element * e, Element ** m1, Element ** m2) {
         db<Lists>(TRC) << "Grouping_List::insert_merging(e=" << e << ")" << endl;

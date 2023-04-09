@@ -7,6 +7,8 @@ OStream cout;
 
 int main()
 {
+    cout << "Starting E6b worst fit alocation test" << endl;
+
     // Especifica tamanho da heap manualmente
     const unsigned int HEAP_SIZE = 4096;
 
@@ -16,29 +18,30 @@ int main()
     // Inicializa a heap
     Heap heap(reinterpret_cast<void*>(heap_buffer), HEAP_SIZE);
 
-    cout << "Tamanho do bloco livre inicial: " << heap.grouped_size() << " bytes" << endl;
+    char **array = new char*[4];
+    cout << "Endereço inicial do array: " << array << endl;
 
-    // Teste de alocação e liberação de memória
-    char * block1 = reinterpret_cast<char *>(heap.alloc(1024));
-    cout << "Tamanho do bloco livre após a alocação do primeiro bloco de 1024 bytes: " << heap.grouped_size() << " bytes" << endl;
+    array[0] = reinterpret_cast<char *>(heap.alloc(512));
+    cout << "Alocando 512 bytes - array[0] = " << static_cast<void*>(array[0]) << endl; // imprime o endereço de memória
+    array[1] = reinterpret_cast<char *>(heap.alloc(512));
+    cout << "Alocando 512 bytes - array[1] = " << static_cast<void*>(array[1]) << endl; // imprime o endereço de memória
+    array[2] = reinterpret_cast<char *>(heap.alloc(2048));
+    cout << "Alocando 2048 bytes - array[2] = " << static_cast<void*>(array[2]) << endl; // imprime o endereço de memória
+    array[3] = reinterpret_cast<char *>(heap.alloc(512));
+    cout << "Alocando 512 bytes - array[3] = " << static_cast<void*>(array[3]) << endl; // imprime o endereço de memória
 
-    char * block2 = reinterpret_cast<char *>(heap.alloc(512));
-    cout << "Tamanho do bloco livre após a alocação do segundo bloco de 512 bytes: " << heap.grouped_size() << " bytes" << endl;
+    heap.free(reinterpret_cast<void *>(array[2]), 2048);
+    cout << "After freeing array[2], heap size = " << heap.grouped_size() << " bytes" << endl;
 
-    char * block3 = reinterpret_cast<char *>(heap.alloc(256));
-    cout << "Tamanho do bloco livre após a alocação do terceiro bloco de 256 bytes: " << heap.grouped_size() << " bytes" << endl;
+    array[2] = reinterpret_cast<char *>(heap.alloc(512));
+    cout << "Alocando 512 bytes - array[2] = " << static_cast<void*>(array[2]) << endl; // imprime o endereço de memória
+    cout << "Heap size: " << heap.grouped_size() << " bytes" << endl;
 
-    if (block2 == block3) {
-        cout << "Erro: o bloco alocado pelo first fit é o mesmo que foi alocado anteriormente pelo worst fit" << endl;
-    } else {
-        cout << "Sucesso: o bloco alocado pelo first fit é diferente do bloco alocado anteriormente pelo worst fit" << endl;
-    }
+    heap.free(reinterpret_cast<void *>(array[0]), 512);
+    heap.free(reinterpret_cast<void *>(array[1]), 512);
+    heap.free(reinterpret_cast<void *>(array[2]), 512);
+    heap.free(reinterpret_cast<void *>(array[3]), 512);
 
-    heap.free(reinterpret_cast<void *>(block1), 1024);
-    heap.free(reinterpret_cast<void *>(block2), 512);
-    heap.free(reinterpret_cast<void *>(block3), 256);
-
-    cout << "Tamanho do bloco livre após a liberação de 3 blocos: " << heap.grouped_size() << " bytes" << endl;
-
+    cout << "After freeing array[0] to and array[3], heap size = " << heap.grouped_size() << " bytes" << endl;
     return 0;
 }
