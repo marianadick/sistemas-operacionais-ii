@@ -10,7 +10,6 @@
 
 using namespace EPOS;
 
-
 __BEGIN_SYS
 
 
@@ -21,71 +20,67 @@ private:
     typedef CPU::Reg32 Reg32;
 public:
 
+    static const unsigned int RXWM_MASK = 0x000000ff;
+    static const unsigned int TXWM_MASK = 0x0000ff00;
+
+      // SPI registers offsets from SPI_BASE
     enum {
-        SCKDIV  = 0x00, // clock divisor
-        SCKMODE = 0x04, // SPI mode 
-        CSID    = 0x10, // Chip select 
-        CSDEF   = 0x14, // Chip select default 
-        CSMODE  = 0x18, // Chip select mode 
-        DELAY0  = 0x28, // Delay control 0
-        DELAY1  = 0x2c, // Delay control 1
+        SCKDIV  = 0x00, // Clock divisor register
+        SCKMODE = 0x04, // SPI mode and control register
+        CSID    = 0x10, // Chip select ID register
+        CSDEF   = 0x14, // Chip select default register
+        CSMODE  = 0x18, // Chip select mode register
+        DELAY0  = 0x28, // Delay control register 0
+        DELAY1  = 0x2c, // Delay control register 1
         FMT     = 0x40, // Frame format
-        TXDATA  = 0x48, // Transmit data 
-        RXDATA  = 0x4c, // Receive data 
-        TXMARK  = 0x50, // Transmit watermark 
-        RXMARK  = 0x54, // Receive watermark 
-        FCTRL   = 0x60, // Flash interface control 
-        FFMT     = 0x64, // Flash interface timing 
-        IE      = 0x70, // Interrupt enable 
-        IP      = 0x74, // Interrupt pending 
-        DIV     = 0x80 // Set the SPI clock frequency
-        
+        TXDATA  = 0x48, // Transmit data register
+        RXDATA  = 0x4c, // Receive data register
+        TXMARK  = 0x50, // Transmit watermark register
+        RXMARK  = 0x54, // Receive watermark register
+        FCTRL   = 0x60, // Flash interface control register
+        FFMT     = 0x64, // Flash interface timing register
+        IE      = 0x70, // Interrupt enable register
+        IP      = 0x74, // Interrupt pending register
+        DIV     = 0x80, // Set the SPI clock frequency
+        DATA    = 0xff << 0
     };
 
-    static const unsigned int CLOCK = Traits<SPI>::CLOCK;
-
     SPI_E() {
-        config(CLOCK, 0, 0, 250000, 8);
+        config(0x1312d00, 0, 0, 1000000, 8);
     }
 
     void config(unsigned int clock, unsigned int protocol, unsigned int mode, unsigned int bit_rate, unsigned int data_bits) {
         // Set the clock divisor
-        unsigned int sckdiv = (clock / (2 * bit_rate) ) - 1;
-        reg(SCKDIV) = sckdiv & 0xffffffff;
+        unsigned int sckdiv = clock / bit_rate - 1;
+        reg(SCKDIV) = sckdiv;
         
+        //reg(CSID) = 0x01;
         // Set the SPI mode and control register
         unsigned int sckmode =  0x0;
         reg(SCKMODE) = sckmode;
 
-
-        reg(CSMODE) = 0x01; //mode hold
-        reg(CSID) = 0x00; //choose first id (see device tree and the spi@10050000 device)
+        // Enable loopback mode? -> not right
+        reg(SCKMODE) |= (1 << 7);
 
         // Set the frame format
+        //unsigned int fmt = (data_bits - 1) << 16;
+            //reg(FMT) = fmt;
         unsigned int fmt = 0x0;  // clear all the bits
-        fmt = ((protocol << 0) | (0 << 2) | (mode << 3) | (data_bits << 16)); // set endian, mode, protocol and data_bits
+        fmt |= (7 << 16);       // set frame size to 8 bits
         reg(FMT) = fmt;
         
-        // Enable interruptions
+        reg(CSMODE) = 0x01;
+        reg(CSID) = 0x00;
+        // Set the SPI clock frequency
+        //reg(DIV) = sckdiv;
         reg(IE) = 0x03;
-        reg(TXMARK) =  0x01;
-        reg(RXMARK) = 0x00;
-    }
+        reg(TXMARK) =  0x1;
+        reg(RXMARK) = 0x0;
+        }
 
     void put(int data) {
         // Wait until there is space to write
-        // another approach is described in the ready_to_put function
-        while ((reg(IP) & 0x1) == 0) {
-            /*
-                The IP register is a read-only register that 
-                stores the status of various interrupt flags. 
-                In this case, the IP[0] bit indicates whether 
-                the transmit buffer is full or not. If the IP[0] 
-                bit is set to 0, it means there is space available 
-                in the buffer to write new data
-            
-            */
-        }
+        while ((reg(IP) & 0x1) == 0) {}
 
         // Write the data
         reg(TXDATA) = data;
@@ -93,12 +88,7 @@ public:
 
     int get() {
         // Wait until there is data to read
-        // another approach is described in the ready_to_get function
-        while ((reg(IP) & 0x2) == 0) {
-            // same explanation of the put function
-            // we used this approach because we could skip reading the register
-            // if we dont want to consume its data
-        }
+        while ((reg(IP) & 0x2) == 0) {}
 
         // Read the data
         int data = reg(RXDATA);
@@ -151,22 +141,16 @@ public:
 
     void flush() {
         // Flush the SPI
-        //The purpose of this loop is to wait until the SPI interface is 
-        //not busy before proceeding with the next operation.
         while ((reg(IP) & 0x3) != 0) {}
     }
 
     bool ready_to_get()
     {
-        // we decided to use the IP for dont read the rxdata
-        // another approach is the !(reg(RXDATA) & (1 << 31)) 
-        // but using it would make we consume the register
         return ((reg(IP) & 0x2) != 0);
     }
 
     bool ready_to_put() {
         // Check if TXFIFO is not full
-        // another approach is the !(reg(TXDATA) & (1 << 31)) 
        return (((reg(IP) & 0x1) != 0));
     }
     
