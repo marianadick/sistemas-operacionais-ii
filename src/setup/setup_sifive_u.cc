@@ -40,6 +40,11 @@ private:
     typedef CPU::Phy_Addr Phy_Addr;
     typedef CPU::Log_Addr Log_Addr;
 
+    typedef MMU::RV64_Flags RV64_Flags;
+    typedef MMU::Page_Table Page_Table;
+    typedef MMU::Page_Directory Page_Directory;
+    typedef MMU::PT_Entry PT_Entry;
+
 public:
     Setup();
 
@@ -111,8 +116,19 @@ void Setup::say_hi()
 }
 
 void Setup::start_mmu() {
-    // Activate MMU here with satp MODE = 1000?
-    // CPU::satp();
+    // create _master under the PAGE_TABLE address
+    /*
+    Page_Directory *_master = MMU::current();
+    unsigned long pd = Traits<Machine>::PAGE_TABLE;
+    _master = new ((void *)pd) Page_Directory();
+    */
+
+    // qtt of pages for (RAM_TOP + 1) - RAM_BASE
+    /*
+    unsigned pages = MMU::pages(Traits<Machine>::RAM_TOP + 1 - Traits<Machine>::RAM_BASE);
+    unsigned entries = MMU::page_tables(pages);
+    _master->remap(pd, 0, entries, RV64_Flags::V);
+    */
 }
 
 void Setup::call_next()

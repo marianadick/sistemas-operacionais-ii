@@ -22,14 +22,14 @@ public:
 
     // 'Global' default sizes and quantities
     static const unsigned long MAX_THREADS       = 16;
-    static const unsigned long STACK_SIZE        = 64 * 1024;                            // 64 kB
-    static const unsigned long HEAP_SIZE         = 1 * 1024 * 1024;                      // 1 MB
-    static const unsigned long PAGE_SIZE         = 0x1000;                               // 4kB
-    static const unsigned long PAGE_ENTRIES      = 512;                                  // 2^9 VPN[2]
+    static const unsigned long STACK_SIZE        = 0x10000;                             // 64 kB
+    static const unsigned long HEAP_SIZE         = 0x100000;                            // 1 MB
+    static const unsigned long PAGE_SIZE         = 0x1000;                              // 4kB
+    static const unsigned long PAGE_ENTRIES      = 512;                                 // 2^9 VPN[2]
 
     // General system infos
-    static const unsigned long SYS               = NOT_USED;
-    static const unsigned long SYS_CODE          = NOT_USED;
+    static const unsigned long SYS               = 0xffffffc000000000;                  // 256 GB
+    static const unsigned long SYS_CODE          = NOT_USED;    
     static const unsigned long SYS_INFO          = NOT_USED;
     static const unsigned long SYS_PT            = NOT_USED;
     static const unsigned long SYS_PD            = NOT_USED;
@@ -50,10 +50,10 @@ public:
     static const unsigned long MIO_BASE          = 0x00000000;
     static const unsigned long MIO_TOP           = 0x1fffffff;                           // 512 MB
 
-    static const unsigned long BOOT_STACK        = RAM_TOP + 1 - STACK_SIZE;             // 64 kB stack's base
-    static const unsigned long FREE_BASE         = RAM_BASE - (PAGE_ENTRIES * PAGE_SIZE);
-    static const unsigned long PAGE_TABLES       = RAM_BASE;                              // put the PAGE_TABLES on the begining of the ram
-    static const unsigned long FREE_TOP          = PAGE_TABLES;
+    static const unsigned long BOOT_STACK        = RAM_TOP + 1 - STACK_SIZE;              // 64 kB stack's base
+    static const unsigned long PAGE_TABLE        = RAM_BASE;                              // put the PAGE_TABLE on the begining of the ram
+    static const unsigned long FREE_BASE         = RAM_BASE + (PAGE_ENTRIES * PAGE_SIZE); // Free memory from RAM_BASE + PAGE_TABLE
+    static const unsigned long FREE_TOP          = BOOT_STACK;
 
     // Physical Memory at Boot
     static const unsigned long BOOT              = NOT_USED;
