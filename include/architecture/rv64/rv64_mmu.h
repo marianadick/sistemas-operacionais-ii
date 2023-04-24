@@ -17,7 +17,7 @@
 
 __BEGIN_SYS
 
-class Sv39_MMU: public MMU_Common<10, 10, 12>
+class MMU: public MMU_Common<9, 9, 12>
 {
     friend class CPU;
 
@@ -25,10 +25,12 @@ private:
     typedef Grouping_List<Frame> List;
 
     static const bool colorful = Traits<MMU>::colorful;
-    static const unsigned int COLORS = Traits<MMU>::COLORS;
-    static const unsigned int RAM_BASE = Memory_Map::RAM_BASE;
-    static const unsigned int APP_LOW = Memory_Map::APP_LOW;
-    static const unsigned int PHY_MEM = Memory_Map::PHY_MEM;
+    static const unsigned long COLORS = Traits<MMU>::COLORS;
+    static const unsigned long RAM_BASE = Memory_Map::RAM_BASE;
+    static const unsigned long APP_LOW = Memory_Map::APP_LOW;
+    static const unsigned long PHY_MEM = Memory_Map::PHY_MEM;
+
+    static const unsigned long LEVELS = 3;
 
 public:
     // Page Flags
@@ -50,9 +52,9 @@ public:
             MASK = (1 << 8) - 1
         };
 
-        // RISC-V flags
+        // SATP
         enum {
-            MODE    = 1 << 4 // Sv39 MODE
+            SV39    = 1UL << 63 // Sv39 MODE
         };
 
     public:
@@ -79,6 +81,7 @@ public:
 
         PT_Entry & operator[](unsigned int i) { return _entry[i]; }
 
+        // Switching to multi-level page table
         void map(int from, int to, Page_Flags flags) {
             Phy_Addr * addr = alloc(to - from);
             if(addr)
@@ -87,7 +90,7 @@ public:
                 for( ; from < to; from++) {
                     // ptes[from] = ((alloc(1) >> 12) << 10) | flags ;
                     Log_Addr * pte = phy2log(&_entry[from]);
-                    *pte = phy2pte(alloc(1), flags);
+                    *pte = pnn2pte(alloc(1), flags);
                 }
         }
 
@@ -95,7 +98,7 @@ public:
             addr = align_page(addr);
             for( ; from < to; from++) {
                 Log_Addr * pte = phy2log(&_entry[from]);
-                *pte = phy2pte(addr, flags);
+                *pte = pnn2pte(addr, flags);
                 addr += sizeof(Page);
             }
         }   
@@ -135,9 +138,9 @@ public:
             free(_pt, _pts);
         }
 
-        unsigned int pts() const { return _pts; }
+        unsigned int pts() const { return _pts; }           // Number of page necessary to alloc the chunk
+        Page_Table * pt() const { return _pt; }             // Which table is the chunk mapped to
         Page_Flags flags() const { return _flags; }
-        Page_Table * pt() const { return _pt; }
         unsigned int size() const { return (_to - _from) * sizeof(Page); }
         Phy_Addr phy_address() const { return Phy_Addr(ind((*_pt)[_from])); }
         int resize(unsigned int amount) { return 0; }
@@ -169,7 +172,7 @@ public:
         Phy_Addr pd() const { return _pd; }
 
         // MODE = 1000, 2^12 = 4kB 
-        void activate() const { CPU::satp((1UL << 63) | reinterpret_cast<CPU::Reg64>(_pd) >> 12); }
+        void activate() const { CPU::satp((1UL << 63) | reinterpret_cast<CPU::Reg64>(_pd) >> PT_SHIFT); }
 
         Log_Addr attach(const Chunk & chunk, unsigned int from = pdi(APP_LOW)) {
             for(unsigned int i = from; i < PD_ENTRIES; i++)
@@ -187,7 +190,7 @@ public:
 
         void detach(const Chunk & chunk) {
             for(unsigned int i = 0; i < PD_ENTRIES; i++) {
-                if(ind((*_pd)[i]) == ind(phy2pde(chunk.pt()))) {
+                if(ind((*_pd)[i]) == ind(pnn2pde(chunk.pt()))) {
                     detach(i, chunk.pt(), chunk.pts());
                     return;
                 }
@@ -215,7 +218,7 @@ public:
                 if((*_pd)[i])
                     return false;
             for(unsigned int i = from; i < from + n; i++, pt++)
-                (*_pd)[i] = phy2pde(Phy_Addr(pt));
+                (*_pd)[i] = pnn2pde(Phy_Addr(pt));
             return true;
         }
 
@@ -230,7 +233,7 @@ public:
     };
 
 public:
-    Sv39_MMU() {}
+    MMU() {}
 
     // Frame 4kB
     static Phy_Addr alloc(unsigned int frames = 1) {
@@ -278,23 +281,19 @@ public:
     }
 
     // PNN -> PTE
-    static PT_Entry phy2pte(Phy_Addr frame, Page_Flags flags) { return (frame >> 2) | flags; }
+    static PT_Entry pnn2pte(Phy_Addr frame, Page_Flags flags) { return (frame >> 2) | flags; }
 
     // PTE -> PNN
-    static Phy_Addr pte2phy(PT_Entry entry) { return (entry & ~Page_Flags::MASK) << 2; }
+    //static Phy_Addr pte2phy(PT_Entry entry) { return (entry & ~Page_Flags::MASK) << 2; }
 
     // PNN -> PDE (??? Page Directory Entry?)
-    static PD_Entry phy2pde(Phy_Addr frame) { return (frame >> 2) | Page_Flags::V; }
+    static PD_Entry pnn2pde(Phy_Addr frame) { return (frame >> 2) | Page_Flags::V; }
 
     // PDE -> PNN
-    static Phy_Addr pde2phy(PD_Entry entry) { return (entry & ~Page_Flags::MASK) << 2; }
+    //static Phy_Addr pde2phy(PD_Entry entry) { return (entry & ~Page_Flags::MASK) << 2; }
 
-    static void flush_tlb() {
-        // sfence.vma??
-    }
-    static void flush_tlb(Log_Addr addr) {
-        // sfence.vma??
-    }
+    static void flush_tlb() {} // TO BE IMPLEMENTED
+    static void flush_tlb(Log_Addr addr) {} // TO BE IMPLEMENTED
 
 private:
     static void init();
@@ -306,9 +305,6 @@ private:
     static List _free;
     static Page_Directory * _master;
 };
-
-
-class MMU: public Sv39_MMU {};
 
 __END_SYS
 
