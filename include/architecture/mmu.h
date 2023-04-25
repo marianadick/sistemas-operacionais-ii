@@ -64,6 +64,7 @@ public:
             CWT  = 1 << 6, // Cache mode (0=write-back, 1=write-through)
             CT   = 1 << 7, // Contiguous (0=non-contiguous, 1=contiguous)
             IO   = 1 << 8, // Memory Mapped I/O (0=memory, 1=I/O)
+            NLP  = ~(PRE | RW | EX), // next level pointer if equals to 0 point to next-page
             SYS  = (PRE | RD | RW | EX),
             APP  = (PRE | RD | RW | EX | USR),
             APPC = (PRE | RD | EX | USR),
@@ -103,11 +104,12 @@ public:
 
     constexpr static Log_Addr align_page(Log_Addr addr) { return (addr + sizeof(Page) - 1) & ~(sizeof(Page) - 1); }
     constexpr static Log_Addr align_segment(Log_Addr addr) { return (addr + PT_ENTRIES * sizeof(Page) - 1) &  ~(PT_ENTRIES * sizeof(Page) - 1); }
-
     constexpr static Log_Addr directory_bits(Log_Addr addr) { return (addr & ~((1 << PD_BITS) - 1)); }
 
+    // AUXILIAR FUNCTIONS
     // Quantity of tables for the quantity of pages
     constexpr static unsigned long page_tables(unsigned int pages) { return PT_BITS ? (pages + PT_ENTRIES - 1) / PT_ENTRIES : 0; }
+    constexpr static unsigned long addr_without_off(Log_Addr addr) { return ((addr >> OFFSET_BITS) << OFFSET_BITS); }
 };
 
 class No_MMU: public MMU_Common<0, 0, 0>
@@ -262,6 +264,7 @@ private:
     static Phy_Addr pd() { return 0; }
     static void pd(Phy_Addr pd) {}
 
+    // ### Maybe should be declared as public (?)
     static void flush_tlb() {}
     static void flush_tlb(Log_Addr addr) {}
 
