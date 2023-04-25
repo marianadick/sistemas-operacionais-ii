@@ -11,6 +11,7 @@ struct Memory_Map
 {
 private:
     static const bool emulated = (Traits<CPU>::WORD_SIZE != 64); // specifying a SiFive-U with RV32 sets QEMU machine to Virt
+    static const bool multitask = false;
 
 public:
     enum : unsigned long {

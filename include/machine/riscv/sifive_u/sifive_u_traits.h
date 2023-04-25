@@ -22,10 +22,10 @@ public:
 
     // 'Global' default sizes and quantities
     static const unsigned long MAX_THREADS       = 16;
-    static const unsigned long STACK_SIZE        = 0x10000;                             // 64 kB
+    static const unsigned long STACK_SIZE        = 65536;                             // 64 kB
     static const unsigned long HEAP_SIZE         = 0x100000;                            // 1 MB
-    static const unsigned long PAGE_SIZE         = 0x1000;                              // 4kB
-    static const unsigned long PAGE_ENTRIES      = 512;                                 // 2^9 VPN[2]
+    //static const unsigned long PAGE_SIZE         = 0x1000;                              // 4kB
+    //static const unsigned long PAGE_ENTRIES      = 512;                                 // 2^9 VPN[2]
 
     // General system infos
     static const unsigned long SYS               = 0xffffffc000000000;                  // 256 GB
@@ -45,20 +45,20 @@ public:
     static const unsigned long TLCLK             = CLOCK / 2;                            // L2 cache and peripherals such as UART, SPI, I2C, and PWM operate in a single clock domain (tlclk) running at coreclk/2 rate. There is a low-latency 2:1 crossing between coreclk and tlclk domains.
 
     // Physical Memory
-    static const unsigned long RAM_BASE          = 0x80000000;                           // 2 GB
-    static const unsigned long RAM_TOP           = 0xffffffff;                           // 2 GB RAM
-    static const unsigned long MIO_BASE          = 0x00000000;
-    static const unsigned long MIO_TOP           = 0x1fffffff;                           // 512 MB
+    static const unsigned long RAM_BASE          = 0x0000000080000000;                           // 2 GB
+    static const unsigned long RAM_TOP           = 0x00000000ffffffff;                           // 2 GB RAM
+    static const unsigned long MIO_BASE          = 0x0000000000000000;
+    static const unsigned long MIO_TOP           = 0x000000001fffffff;                           // 512 MB
 
     static const unsigned long BOOT_STACK        = RAM_TOP + 1 - STACK_SIZE;              // 64 kB stack's base
-    static const unsigned long PAGE_TABLE        = RAM_BASE;                              // put the PAGE_TABLE on the begining of the ram
-    static const unsigned long FREE_BASE         = RAM_BASE + (PAGE_ENTRIES * PAGE_SIZE); // Free memory from RAM_BASE + PAGE_TABLE
+    static const unsigned long PAGE_TABLE        = (BOOT_STACK) - ((1 + 512 + (512 * 512)) * 0x1000);                              // put the PAGE_TABLE on the begining of the ram
+    static const unsigned long FREE_BASE         = RAM_BASE; // Free memory from RAM_BASE + PAGE_TABLE
     static const unsigned long FREE_TOP          = BOOT_STACK;
 
     // Physical Memory at Boot
     static const unsigned long BOOT              = NOT_USED;
     static const unsigned long SETUP             = NOT_USED;
-    static const unsigned long IMAGE             = RAM_BASE + 0x100000;                 // RAM_BASE + 1 MB
+    static const unsigned long IMAGE             = NOT_USED;                 // RAM_BASE + 1 MB
 
     // Logical Memory
     // In Sv39, all bits from bit 39 to bit 63 must be equal to the bit 38
@@ -68,8 +68,8 @@ public:
     static const unsigned long APP_DATA          = APP_CODE + 0x400000;                 // 4 MB
 
     static const unsigned long INIT              = NOT_USED;
-    static const unsigned long PHY_MEM           = NOT_USED;                            // disabled 
-    static const unsigned long IO                = NOT_USED; 
+    static const unsigned long PHY_MEM           = 0x0000004000000000;                   
+    static const unsigned long IO                = 0x0000000000000000; 
 };
 
 template <> struct Traits<IC>: public Traits<Machine_Common>

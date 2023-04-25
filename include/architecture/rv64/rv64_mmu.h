@@ -10,12 +10,13 @@
 
 __BEGIN_SYS
 
-class Sv39_MMU: public MMU_Common<9, 9, 21, 9>
+// 3 levels, 2^9 entries with 2^12 page size
+class Sv39_MMU: public MMU_Common<3, 9, 12>
 {
     friend class CPU;
 
 private:
-    typedef Grouping_List<Frame> List;
+    typedef Grouping_List<unsigned int> List;
 
     static const unsigned long RAM_BASE = Memory_Map::RAM_BASE;
     static const unsigned long APP_LOW = Memory_Map::APP_LOW;
@@ -335,7 +336,6 @@ public:
 public:
     Sv39_MMU() {}
 
-    // Frame 4kB
     static Phy_Addr alloc(unsigned long bytes = 1) {
         Phy_Addr phy(false);
 
@@ -343,7 +343,7 @@ public:
             // Encontra um bloco cujo numero de bytes requisitados cabe que cabe
             List::Element * e = _free.search_decrementing(bytes);
             if(e) {
-                phy = reinterpret_cast<unsigned long>(e->object() + e->size());
+                phy = e->object() + e->size();
                 db<MMU>(TRC) << "MMU::alloc(bytes=" << bytes << ") => " << phy << endl;
             } else
                 db<MMU>(ERR) << "MMU::alloc() failed" << endl;
@@ -360,13 +360,6 @@ public:
     // n = number of addr to be free
     static void free(Phy_Addr addr, unsigned long n = 1) {
         db<MMU>(TRC) << "MMU::free(addr=" << addr << ",n=" << n << ")" << endl;
-
-        // No unaligned addresses if the CPU doesn't support it
-        assert(Traits<CPU>::unaligned_memory_access || !(addr % (Traits<CPU>::WORD_SIZE / 8)));
-
-        // Free blocks must be large enough to contain a list element
-        // ### REVISAR (TRAVA NO TESTE DO P2, MAS PASSA NO HELLO, O Q FAZ SENTIDO)
-        //assert(n > sizeof(List::Element));
 
         if(addr && n) {
             List::Element * e = new (addr) List::Element(addr, n);
