@@ -25,6 +25,7 @@ public:
         BOOT_STACK      = Traits<Machine>::BOOT_STACK, // stack's base
         FREE_BASE       = Traits<Machine>::FREE_BASE,
         FREE_TOP        = Traits<Machine>::FREE_TOP,
+        PAGE_TABLES     = Traits<Machine>::PAGE_TABLES,
 
         // Memory-mapped devices
         BIOS_BASE       = 0x00001000,   // BIOS ROM

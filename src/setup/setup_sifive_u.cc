@@ -5,6 +5,21 @@
 #include <utility/elf.h>
 #include <utility/string.h>
 
+using namespace EPOS::S;
+typedef unsigned long Reg;
+
+// timer handler
+extern "C" [[gnu::interrupt, gnu::aligned(8)]] void _mmode_forward() {
+    Reg id = CPU::mcause();
+    if((id & CLINT::INT_MASK) == CLINT::IRQ_MAC_TIMER) {
+        Timer::reset();
+        CPU::sie(CPU::STI);
+    }
+    Reg interrupt_id = 1 << ((id & CLINT::INT_MASK) - 2);
+    if(CPU::int_enabled() && (CPU::sie() & (interrupt_id)))
+        CPU::mip(interrupt_id);
+}
+
 extern "C" {
     void _start();
 
@@ -34,13 +49,13 @@ private:
     static const unsigned long FREE_TOP         = Memory_Map::FREE_TOP;
     static const unsigned long SETUP            = Memory_Map::SETUP;
     static const unsigned long BOOT_STACK       = Memory_Map::BOOT_STACK;
+    static const unsigned long PAGE_TABLES      = Memory_Map::PAGE_TABLES;
 
     // Architecture Imports
     typedef CPU::Reg Reg;
-    typedef CPU::Phy_Addr Phy_Addr;
-    typedef CPU::Log_Addr Log_Addr;
 
-    typedef MMU::RV64_Flags RV64_Flags;
+    // MMU imports
+    typedef MMU::Flags RV64_Flags;
     typedef MMU::Page_Table Page_Table;
     typedef MMU::Page_Directory Page_Directory;
     typedef MMU::PT_Entry PT_Entry;
@@ -50,8 +65,9 @@ public:
 
 private:
     void say_hi();
-    void start_mmu();
+    void enable_paging();
     void call_next();
+    unsigned long * add_to_pointer(unsigned long * pointer, unsigned long add, unsigned long mask);
 
 private:
     System_Info * si;
@@ -75,12 +91,11 @@ Setup::Setup()
     say_hi();
 
     // Starting MMU
-    start_mmu();
+    enable_paging();
 
     // SETUP ends here, so let's transfer control to the next stage (INIT or APP)
     call_next();
 }
-
 
 void Setup::say_hi()
 {
@@ -115,30 +130,90 @@ void Setup::say_hi()
     kout << endl;
 }
 
-void Setup::start_mmu() {
-    // create _master under the PAGE_TABLE address
-    /*
-    Page_Directory *_master = MMU::current();
-    unsigned long pd = Traits<Machine>::PAGE_TABLE;
-    _master = new ((void *)pd) Page_Directory();
-    */
-
-    // qtt of pages for (RAM_TOP + 1) - RAM_BASE
-    /*
-    unsigned pages = MMU::pages(Traits<Machine>::RAM_TOP + 1 - Traits<Machine>::RAM_BASE);
-    unsigned entries = MMU::page_tables(pages);
-    _master->remap(pd, 0, entries, RV64_Flags::V);
-    */
+unsigned long* Setup::add_to_pointer(unsigned long * pointer, unsigned long add, unsigned long mask = ~(0UL)) {
+    return reinterpret_cast<unsigned long *>((reinterpret_cast<unsigned long>(pointer) + add) & mask);
 }
 
-void Setup::call_next()
-{
-    db<Setup>(INF) << "SETUP ends here!" << endl;
+void Setup::enable_paging() {
+    // All memory available
+    unsigned int PAGE_SIZE = Sv39_MMU::PAGE_SIZE;
+    unsigned int PT_ENTRIES = Sv39_MMU::PT_ENTRIES;
+    unsigned long pages = MMU::pages(RAM_TOP);
+    unsigned int PD_ENTRIES_LV2 = Sv39_MMU::page_tables_lv2(pages);
+    unsigned int PD_ENTRIES_LV1 = Sv39_MMU::page_tables(pages);
+    unsigned int PT_ENTRIES_LV0 = pages > PT_ENTRIES ? PT_ENTRIES : pages;
+    db<Setup>(TRC) << "Setup MMU! (PD_ENTRIES_LV2=" << PD_ENTRIES_LV2 << ", PD_ENTRIES_LV1=" << PD_ENTRIES_LV1 << ", PT_ENTRIES_LV0=" << PT_ENTRIES_LV0 << ")" << endl;
 
-    // Call the next stage
-    static_cast<void (*)()>(_start)();
+    unsigned long *page_tables_location = reinterpret_cast<unsigned long*>(PAGE_TABLES);
+    db<Setup>(TRC) << "Setup::enable_paging(page_tables_location=" << page_tables_location << ")" << endl;
+    
+    // Create pointer for LV2
+    Page_Directory* _pd_master = Sv39_MMU::current();
+    // Create a Page_Directory, now _pd_master points to pd_lv2
+    _pd_master = new (page_tables_location) Page_Directory();
+    // _pd_master has 4kb (512ptes) so we need to advance the page_tables_location pointer in 4kb
+    // page_tables_location = (page_tables_location + 0x1000)
+    page_tables_location = add_to_pointer(page_tables_location, PAGE_SIZE);
 
-    // SETUP is now part of the free memory and this point should never be reached, but, just in case ... :-)
+    // We remap all pte's entries, the first pte points to the page_tables_location location
+    // we have two pd_lv2 entries, so this will be the ptes addresses
+    // addr = (page_tables_location + 0x1000) + 0x000000
+    // addr = (page_tables_location + 0x1000) + 0x201000
+    _pd_master->remap(page_tables_location, 0, PD_ENTRIES_LV2, RV64_Flags::PD, ((PAGE_SIZE * PT_ENTRIES) + PAGE_SIZE));
+
+    // for every entry in the PD_LV2:
+    for (unsigned long i = 0; i < PD_ENTRIES_LV2; i++) { // 0..2
+        // pd_lv2_entry = (page_tables_location + 0x1000) + 0x000000
+        // pd_lv2_entry = (page_tables_location + 0x1000) + 0x201000
+        // Create a new Page_Directory pd_lv1 in the pd_lv2_entry pointer;
+        Page_Directory * pd_lv1 = new (page_tables_location) Page_Directory();
+        // Put the "page_tables_location" pointer in the correct place: page_tables_location + PAGE_SIZE
+        page_tables_location = add_to_pointer(page_tables_location, PAGE_SIZE);
+
+        // i = 0;
+        // Inside pd_lv1 we remap phy_mem addresses
+        // addr = ((page_tables_location + 0x1000) + 0x0000) + 0x1000
+        // addr = ((page_tables_location + 0x1000) + 0x0000) + 0x2000
+        // ...
+        // addr = ((page_tables_location + 0x1000) + 0x0000) + 0x201000
+        pd_lv1->remap(page_tables_location, 0, PD_ENTRIES_LV1, RV64_Flags::PD);
+
+        // for every entry in the PD_LV1:
+        for (unsigned long j = 0; j < PD_ENTRIES_LV1; j++) { // 0..511
+            // Create new Page_Tables in pt_lv0 in the pd_lv1_entry pointer
+            Page_Table * pt_lv0 = new (page_tables_location) Page_Table();
+            // Put the "page_tables_location" pointer in the correct place: page_tables_location + PAGE_SIZE
+            page_tables_location = add_to_pointer(page_tables_location, PAGE_SIZE);
+
+            // Inside pd_lv1 we remap mem addresses
+            // addr = mem
+            // addr = mem + 0x1000
+            // addr = mem + 0x2000
+            // ....
+            // addr = mem + 0x200000
+            pt_lv0->remap((PT_ENTRIES_LV0 * PAGE_SIZE * (j + (i * PD_ENTRIES_LV1))), 0, PT_ENTRIES_LV0, RV64_Flags::SYS);
+        }
+    }
+
+    db<Setup>(INF) << "Set SATP" << endl;
+    // Set SATP and enable paging
+    CPU::satp((1UL << 63) | (reinterpret_cast<unsigned long>(_pd_master) >> 12));
+
+    db<Setup>(INF) << "Flush TLB" << endl;
+    // Flush TLB to ensure we've got the right memory organization
+    MMU::flush_tlb();
+}
+
+void Setup::call_next() {
+    db<Setup>(INF) << "SETUP almost ready!" << endl;
+
+    CPU::sie(CPU::SSI | CPU::STI | CPU::SEI);
+    CPU::sstatus(CPU::SPP_S);
+
+    CPU::sepc(CPU::Reg(&_start));
+    CLINT::stvec(CLINT::DIRECT, CPU::Reg(&_int_entry));
+
+    CPU::sret();
     db<Setup>(ERR) << "OS failed to init!" << endl;
 }
 
@@ -148,19 +223,35 @@ using namespace EPOS::S;
 
 void _entry() // machine mode
 {
-    if(CPU::mhartid() != 0)                             // SiFive-U always has 2 cores, so we disable CU1 here
+    // SiFive-U core 0 doesn't have MMU (CHECK this)
+    if(CPU::mhartid() == 0)
         CPU::halt();
 
-    CPU::mstatusc(CPU::MIE);                            // disable interrupts (they will be reenabled at Init_End)
-    CPU::mies(CPU::MSI);                                // enable interrupts generation by CLINT
-    CLINT::mtvec(CLINT::DIRECT, _int_entry);            // setup a preliminary machine mode interrupt handler pointing it to _int_entry
-
-    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE - sizeof(long)); // set the stack pointer, thus creating a stack for SETUP
-
+    // ensure that sapt is 0
+    CPU::satp(0);
     Machine::clear_bss();
 
-    CPU::mstatus(CPU::MPP_M);                           // stay in machine mode at mret
+    // set the stack pointer, thus creating a stack for SETUP
+    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE - sizeof(long));
 
+    // Set up the Physical Memory Protection registers correctly
+    // A = NAPOT, X, R, W
+    CPU::pmpcfg0(0x1f);
+    // All memory
+    CPU::pmpaddr0((1UL << 55) - 1);
+
+    // Delegate all traps to supervisor
+    // Timer will not be delegated due to architecture reasons.
+    CPU::mideleg(CPU::SSI | CPU::STI | CPU::SEI);
+    CPU::medeleg(0xffff);
+
+    CPU::mies(CPU::MSI | CPU::MTI | CPU::MEI);              // enable interrupts generation by CLINT
+    CPU::mint_disable();                                    // (mstatus) disable interrupts (they will be reenabled at Init_End)
+    CLINT::mtvec(CLINT::DIRECT, CPU::Reg(&_mmode_forward)); // setup a preliminary machine mode interrupt handler pointing it to _mmode_forward
+
+    // MPP_S = change to supervirsor
+    // MPIE = otherwise we won't ever receive interrupts
+    CPU::mstatus(CPU::MPP_S | CPU::MPIE);
     CPU::mepc(CPU::Reg(&_setup));                       // entry = _setup
     CPU::mret();                                        // enter supervisor mode at setup (mepc) with interrupts enabled (mstatus.mpie = true)
 }
