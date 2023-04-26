@@ -27,6 +27,8 @@ private:
 
 public:
     // Page Flags
+    static const unsigned long PAGE_SIZE = MMU_Common::PG_SIZE;
+    
     class RV64_Flags
     {
     public:

@@ -5,6 +5,23 @@
 #include <utility/elf.h>
 #include <utility/string.h>
 
+using namespace EPOS::S;
+typedef unsigned long Reg;
+
+// timer handler
+extern "C" [[gnu::interrupt, gnu::aligned(8)]] void _mmode_forward()
+{
+    Reg id = CPU::mcause();
+    if ((id & CLINT::INT_MASK) == CLINT::IRQ_MAC_TIMER)
+    {
+        Timer::reset();
+        CPU::sie(CPU::STI);
+    }
+    Reg interrupt_id = 1 << ((id & CLINT::INT_MASK) - 2);
+    if (CPU::int_enabled() && (CPU::sie() & (interrupt_id)))
+        CPU::mip(interrupt_id);
+}
+
 extern "C" {
     void _start();
 
@@ -34,6 +51,8 @@ private:
     static const unsigned long FREE_TOP         = Memory_Map::FREE_TOP;
     static const unsigned long SETUP            = Memory_Map::SETUP;
     static const unsigned long BOOT_STACK       = Memory_Map::BOOT_STACK;
+    static const unsigned long PAGE_TABLES      = Memory_Map::PAGE_TABLES;
+
 
     // Architecture Imports
     typedef CPU::Reg Reg;
@@ -50,6 +69,7 @@ public:
 
 private:
     void say_hi();
+    unsigned long * add_to_pointer(unsigned long * pointer, unsigned long add, unsigned long mask);
     void start_mmu();
     void call_next();
 
@@ -115,6 +135,10 @@ void Setup::say_hi()
     kout << endl;
 }
 
+unsigned long* Setup::add_to_pointer(unsigned long * pointer, unsigned long add, unsigned long mask = ~(0UL)) {
+    return reinterpret_cast<unsigned long *>((reinterpret_cast<unsigned long>(pointer) + add) & mask);
+}
+
 void Setup::start_mmu() {
     // create _master under the PAGE_TABLE address
     /*
@@ -129,42 +153,118 @@ void Setup::start_mmu() {
     unsigned entries = MMU::page_tables(pages);
     _master->remap(pd, 0, entries, RV64_Flags::V);
     */
+    kout << "cheguei na start mmu\n" << endl;
+    const unsigned int PAGE_SIZE = Sv39_MMU::PAGE_SIZE;
+    const unsigned int PT_ENTRIES = Sv39_MMU::PT_ENTRIES;
+
+    // Calculate the number of pages needed for the physical memory
+    const unsigned long pages = MMU::pages(RAM_TOP);
+
+    // Calculate the number of entries in the second-level page directory
+    const unsigned int PD_ENTRIES_LV2 = Sv39_MMU::page_tables(pages);
+
+    // Calculate the number of entries in the first-level page directory
+    const unsigned int PD_ENTRIES_LV1 = pages > PT_ENTRIES ? PT_ENTRIES : pages;
+
+    // Calculate the number of entries in the zeroth-level page table
+    const unsigned int PT_ENTRIES_LV0 = pages > PT_ENTRIES ? PT_ENTRIES : pages;
+
+    // Print some debug information
+    db<Setup>(TRC) << "Setup MMU! (PD_ENTRIES_LV2=" << PD_ENTRIES_LV2 << ", PD_ENTRIES_LV1=" << PD_ENTRIES_LV1 << ", PT_ENTRIES_LV0=" << PT_ENTRIES_LV0 << ")" << endl;
+    kout << "setup mmu!\n" << endl;
+
+    // Allocate memory for the page tables
+    unsigned long *page_tables_location = reinterpret_cast<unsigned long*>(PAGE_TABLES);
+
+    // Print some debug information
+    db<Setup>(TRC) << "Setup::enable_paging(page_tables_location=" << page_tables_location << ")" << endl;
+    kout << "enable paging!\n" << endl;
+
+    // Create the second-level page directory
+    Page_Directory* pd_lv2 = new (page_tables_location) Page_Directory();
+    page_tables_location = add_to_pointer(page_tables_location, PAGE_SIZE);
+
+    // Remap the page tables
+    pd_lv2->remap(page_tables_location, 0, PD_ENTRIES_LV2, RV64_Flags::PD);
+
+    // Create the first-level page directories
+    for (unsigned long i = 0; i < PD_ENTRIES_LV2; i++) {
+        Page_Directory * pd_lv1 = new (page_tables_location) Page_Directory();
+        page_tables_location = add_to_pointer(page_tables_location, PAGE_SIZE);
+
+        // Remap the physical memory
+        pd_lv1->remap(page_tables_location, 0, PD_ENTRIES_LV1, RV64_Flags::PD);
+
+        // Create the zeroth-level page tables
+        for (unsigned long j = 0; j < PD_ENTRIES_LV1; j++) {
+            Page_Table * pt_lv0 = new (page_tables_location) Page_Table();
+            page_tables_location = add_to_pointer(page_tables_location, PAGE_SIZE);
+
+            // Remap the memory
+            pt_lv0->remap((PT_ENTRIES_LV0 * PAGE_SIZE * (j + (i * PD_ENTRIES_LV1))), 0, PT_ENTRIES_LV0, RV64_Flags::SYS);
+        }
+    }
+
+    // Set the address of the second-level page directory in the SATP register
+    CPU::satp((1UL << 63) | (reinterpret_cast<unsigned long>(pd_lv2) >> 12));
+    kout << "antes do flush tlb!\n" << endl;
+
+    // Flush the TLB
+    MMU::flush_tlb();
+    kout << "flush tlb\n" << endl;
 }
 
-void Setup::call_next()
-{
-    db<Setup>(INF) << "SETUP ends here!" << endl;
+void Setup::call_next() {
+    db<Setup>(INF) << "SETUP almost ready!" << endl;
 
-    // Call the next stage
-    static_cast<void (*)()>(_start)();
+    CPU::sie(CPU::SSI | CPU::STI | CPU::SEI);
+    CPU::sstatus(CPU::SPP_S);
 
-    // SETUP is now part of the free memory and this point should never be reached, but, just in case ... :-)
+    CPU::sepc(CPU::Reg(&_start));
+    CLINT::stvec(CLINT::DIRECT, CPU::Reg(&_int_entry));
+
+    CPU::sret();
     db<Setup>(ERR) << "OS failed to init!" << endl;
 }
 
 __END_SYS
 
 using namespace EPOS::S;
-
 void _entry() // machine mode
 {
-    if(CPU::mhartid() != 0)                             // SiFive-U always has 2 cores, so we disable CU1 here
+    // SiFive-U core 0 doesn't have MMU
+    if (CPU::mhartid() == 0)
         CPU::halt();
 
-    CPU::mstatusc(CPU::MIE);                            // disable interrupts (they will be reenabled at Init_End)
-    CPU::mies(CPU::MSI);                                // enable interrupts generation by CLINT
-    CLINT::mtvec(CLINT::DIRECT, _int_entry);            // setup a preliminary machine mode interrupt handler pointing it to _int_entry
-
-    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE - sizeof(long)); // set the stack pointer, thus creating a stack for SETUP
-
+    // ensure that sapt is 0
+    CPU::satp(0);
     Machine::clear_bss();
 
-    CPU::mstatus(CPU::MPP_M);                           // stay in machine mode at mret
+    // need to check?
+    // set the stack pointer, thus creating a stack for SETUP
+    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE - sizeof(long));
 
-    CPU::mepc(CPU::Reg(&_setup));                       // entry = _setup
-    CPU::mret();                                        // enter supervisor mode at setup (mepc) with interrupts enabled (mstatus.mpie = true)
+    // Set up the Physical Memory Protection registers correctly
+    // A = NAPOT, X, R, W
+    CPU::pmpcfg0(0x1f);
+    // All memory
+    CPU::pmpaddr0((1UL << 55) - 1);
+
+    // Delegate all traps to supervisor
+    // Timer will not be delegated due to architecture reasons.
+    CPU::mideleg(CPU::SSI | CPU::STI | CPU::SEI);
+    CPU::medeleg(0xffff);
+
+    CPU::mies(CPU::MSI | CPU::MTI | CPU::MEI);              // enable interrupts generation by CLINT
+    CPU::mint_disable();                                    // (mstatus) disable interrupts (they will be reenabled at Init_End)
+    CLINT::mtvec(CLINT::DIRECT, CPU::Reg(&_mmode_forward)); // setup a preliminary machine mode interrupt handler pointing it to _mmode_forward
+
+    // MPP_S = change to supervirsor
+    // MPIE = otherwise we won't ever receive interrupts
+    CPU::mstatus(CPU::MPP_S | CPU::MPIE);
+    CPU::mepc(CPU::Reg(&_setup)); // entry = _setup
+    CPU::mret();                  // enter supervisor mode at setup (mepc) with interrupts enabled (mstatus.mpie = true)
 }
-
 void _setup() // supervisor mode
 {
     kerr  << endl;

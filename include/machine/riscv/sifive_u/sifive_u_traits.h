@@ -24,7 +24,7 @@ public:
     static const unsigned long MAX_THREADS       = 16;
     static const unsigned long STACK_SIZE        = 65536;                             // 64 kB
     static const unsigned long HEAP_SIZE         = 0x100000;                            // 1 MB
-    //static const unsigned long PAGE_SIZE         = 0x1000;                              // 4kB
+    // static const unsigned long PAGE_SIZE         = 0x1000;                              // 4kB
     //static const unsigned long PAGE_ENTRIES      = 512;                                 // 2^9 VPN[2]
 
     // General system infos
@@ -51,7 +51,7 @@ public:
     static const unsigned long MIO_TOP           = 0x000000001fffffff;                           // 512 MB
 
     static const unsigned long BOOT_STACK        = RAM_TOP + 1 - STACK_SIZE;              // 64 kB stack's base
-    static const unsigned long PAGE_TABLE        = (BOOT_STACK) - ((1 + 512 + (512 * 512)) * 0x1000);                              // put the PAGE_TABLE on the begining of the ram
+    static const unsigned long PAGE_TABLES        = (BOOT_STACK) - ((1 + 512 + (512 * 512)) * 0x1000);                              // put the PAGE_TABLE on the begining of the ram
     static const unsigned long FREE_BASE         = RAM_BASE; // Free memory from RAM_BASE + PAGE_TABLE
     static const unsigned long FREE_TOP          = BOOT_STACK;
 
