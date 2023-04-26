@@ -156,7 +156,8 @@ public:
     
 
 private:
-    static volatile CPU::Reg32 & reg(unsigned int o) { return reinterpret_cast<volatile CPU::Reg32 *>(Memory_Map::QSPI1_BASE)[o / sizeof(CPU::Reg32)]; 
+   // TA ERRADO 
+    static volatile CPU::Reg32 & reg(unsigned int o) { return reinterpret_cast<volatile CPU::Reg32 *>(Memory_Map::APP_CODE)[o / sizeof(CPU::Reg32)]; 
 }
 };
 
