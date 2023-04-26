@@ -38,10 +38,10 @@ public:
             G    = 1 << 5, // Global (mapped in multiple PTs)
             A    = 1 << 6, // Accessed (A == R?)
             D    = 1 << 7, // Dirty (D == W)
-            CT   = 1 << 8,  // Contiguous
+            CT   = 1 << 8, // Contiguous
             MIO  = 1 << 9, // I/O
             MASK = (1 << 10) - 1,
-            NLP  = ~(V | W | X),
+            NLP  = ~(V | W | X), //(NLP = No-Load-Protect) used to protect page table entries from being loaded into the TLB
             APP  = (V | R | W | X),
             SYS  = (V | R | W | X | A | D),
             KC   = (V | R | X),
@@ -104,6 +104,7 @@ public:
                 }
             }
 
+            // Remap a range of physical addr (from -> to) to logical addr
             void remap(Phy_Addr addr, long from, long to, Page_Flags flags) {
                 addr = align_page(addr);
                 for( ; from < to; from++) {
@@ -125,7 +126,6 @@ public:
             PT_Entry _pte[PT_ENTRIES];
     };
 
-    // Chunk (for Segment)
     class Chunk
     {
     public:
@@ -157,6 +157,7 @@ public:
             _pt_attach_level_1->remap(phy_addr, _pts, _pts + _ats, Page_Flags::NLP);
         }
 
+        // Freeing everything that was strictly associated with [L0 - L1]
         ~Chunk() {
             for (; _from < _to; _from++)
                 free((*static_cast<Page_Table *>(phy2log(_pt_level_0)))[_from]);
@@ -187,12 +188,12 @@ public:
         Page_Table * _pt_attach_level_1;
     };
 
-    // Page Directory
     typedef Page_Table Page_Directory;
 
     class Directory
     {
     public:
+        // Default constructor
         Directory() : _pd(phy2log(calloc(1))), _free(true) {
             for(unsigned long i = 0; i < PD_ENTRIES; i++)
                 (*_pd)[i] = (*_master)[i];
@@ -205,6 +206,7 @@ public:
         Phy_Addr pd() const { return _pd; }
 
         Log_Addr attach(const Chunk & chunk, unsigned long from = pdi(APP_LOW)) {
+            // For each [L0 and L1], attach L2 page tables
             for (unsigned long i = from; i < PD_ENTRIES; i++) {
                 for (unsigned long i = 0; i < PT_ENTRIES; i++) {
                     if (attach_level_1(i, chunk.at(), chunk.ats(), RV64_Flags::NLP)) {
@@ -218,6 +220,7 @@ public:
 
         Log_Addr attach(const Chunk & chunk, Log_Addr addr) {
             unsigned long from = directory_bits(addr);
+            // For each [L0 and L1], attach L2 page tables
             for (unsigned long i = from; i < PD_ENTRIES; i++) {
                 for (unsigned long i = 0; i < PT_ENTRIES; i++) {
                     if (attach_level_1(i, chunk.at(), chunk.ats(), RV64_Flags::NLP)) {
@@ -255,6 +258,7 @@ public:
             detach_at(from + chunk.pts() + 1, chunk.at(), chunk.ats());
         }
 
+        // Extract from logical to physical addr
         Phy_Addr physical(Log_Addr addr) {
             Page_Table * at = reinterpret_cast<Page_Table *>((void *)(*_pd)[pdi(addr)]); // PPN2 -> PPN1
             Page_Table * pt = reinterpret_cast<Page_Table *>((void *)(*at)[ati(addr)]);  // PPN1 -> PPN0
@@ -303,11 +307,12 @@ public:
 public:
     Sv39_MMU() {}
 
+    // allocates a block of physical memory of size bytes
     static Phy_Addr alloc(unsigned long bytes = 1) {
         Phy_Addr phy(false);
 
         if(bytes) {
-            // Find a bloco which attends the necessity (as we saw in E6)
+            // Find a block which attends the necessity (as we saw in E6)
             List::Element * e = _free.search_decrementing(bytes);
             if(e) {
                 phy = e->object() + e->size();
@@ -318,12 +323,15 @@ public:
         return phy;
     }
 
+    // allocates a block of physical memory of size bytes
     static Phy_Addr calloc(unsigned long bytes = 1) {
         Phy_Addr phy = alloc(bytes);
+        // clear allocated memory block before returning the physical address
         memset(phy, 0, bytes);
         return phy;
     }
 
+    // free a block of memory starting at the specified physical address addr
     // n = number of addr to be free
     static void free(Phy_Addr addr, unsigned long n = 1) {
         db<MMU>(TRC) << "Sv39_MMU::free(addr=" << addr << ",n=" << n << ")" << endl;
@@ -331,6 +339,7 @@ public:
         if(addr && n) {
             List::Element * e = new (addr) List::Element(addr, n);
             List::Element * m1, * m2;
+            // inserts blocks to be freed into the free list
             _free.insert_merging(e, &m1, &m2);
         }
     }
