@@ -1,5 +1,4 @@
 // EPOS RISC-V 64 MMU Mediator Declarations
-
 #ifndef __rv64_mmu_h
 #define __rv64_mmu_h
 
@@ -10,7 +9,7 @@
 
 __BEGIN_SYS
 
-// 3 levels, 2^9 entries with 2^12 page size
+// Setting up the MMU with 3 levels, each one built with 2^9 entries with 2^12 page size
 class Sv39_MMU: public MMU_Common<3, 9, 12>
 {
     friend class CPU;
@@ -19,11 +18,8 @@ private:
     typedef Grouping_List<unsigned int> List;
 
     static const unsigned long RAM_BASE = Memory_Map::RAM_BASE;
-    static const unsigned long APP_LOW = Memory_Map::APP_LOW;
-    static const unsigned long PHY_MEM = Memory_Map::PHY_MEM;
-    //static const unsigned long LEVELS = 3;
-    //static const bool colorful = Traits<MMU>::colorful;
-    //static const unsigned long COLORS = Traits<MMU>::COLORS;
+    static const unsigned long APP_LOW  = Memory_Map::APP_LOW;
+    static const unsigned long PHY_MEM  = Memory_Map::PHY_MEM;
 
 public:
     // Page Flags
@@ -58,14 +54,6 @@ public:
     public:
         RV64_Flags() {}
         RV64_Flags(unsigned long f) : _flags(f) {}
-        // ### CHECK IF THIS FUNCTION IS STILL NECESSARY
-        /*
-        RV64_Flags(Flags f) : _flags(V | R | X |
-                                     ((f & Flags::RW)  ? W  : 0) | // use W flag
-                                     ((f & Flags::USR) ? U  : 0) | // use U flag (0 = supervisor, 1 = user)
-                                     ((f & Flags::CWT) ? 0  : 0) | // cache mode
-                                     ((f & Flags::CD)  ? 0  : 0)) {} // no cache
-        */
         RV64_Flags(const RV64_Flags &f) : _flags(f) {}
         RV64_Flags(const Flags &f) : _flags(((f & Flags::PRE) ? V : 0) |
                                             ((f & Flags::RW) ? (R | W) : R) |
@@ -82,77 +70,59 @@ public:
     typedef Flags Page_Flags;
 
     // Page_Table
-    class Page_Table
-    {
-    public:
-        Page_Table() {}
+    class Page_Table {
+        public:
+            Page_Table() {}
 
-        PT_Entry & operator[](unsigned long i) { return _pte[i]; }
-        PT_Entry get_entry(unsigned long i) { return _pte[i]; }
+            PT_Entry & operator[](unsigned long i) { return _pte[i]; }
+            PT_Entry get_entry(unsigned long i) { return _pte[i]; }
 
-        // Switching to multi-level page table
-        void map(long from, long to, Page_Flags flags) {
-            // This page tables represents a table on the last level.
-            // get the 3 least significant bits of the flags
-            // if equals to 0, then it is a attach level page
-            if (!((flags | Page_Flags::NLP) & 0x111)) {
-                db<MMU>(WRN) << "MMU::Page_Table::map: attach level page" << endl;
-                Phy_Addr * addr = alloc(to - from);
-                if(addr)
-                    remap(addr, from, to, Page_Flags::NLP);
-                else
-                    for( ; from < to; from++) {
-                        Log_Addr *pte = phy2log(ati(&_pte[from]));
-                        *pte = phy2ptae(alloc(1));
-                    }
-            } else {
-                db<MMU>(WRN) << "MMU::Page_Table::map: page table" << endl;
-                // Page table on level 0
-                Phy_Addr *addr = alloc(to - from);
-                if (addr) 
-                    remap(addr, from, to, flags);
-                else {
-                    for (; from < to; from++) {
-                        Log_Addr *pte = phy2log(pti(&_pte[from]));
-                        *pte = phy2pte(alloc(1), flags);
+            // Switching to multi-level page table
+            void map(long from, long to, Page_Flags flags) {
+                // Checks the last 3 bits to see if it's an attach level page
+                if (!((flags | Page_Flags::NLP) & 0x111)) {
+                    db<MMU>(INF) << "Sv39_MMU::Page_Table::map: attach level page" << endl;
+                    Phy_Addr * addr = alloc(to - from);
+                    if(addr)
+                        remap(addr, from, to, Page_Flags::NLP);
+                    else
+                        for( ; from < to; from++) {
+                            Log_Addr *pte = phy2log(ati(&_pte[from]));
+                            *pte = phy2ptae(alloc(1));
+                        }
+                } else {
+                    db<MMU>(INF) << "Sv39_MMU::Page_Table::map: page table" << endl;
+                    Phy_Addr *addr = alloc(to - from);
+                    if (addr) 
+                        remap(addr, from, to, flags);
+                    else {
+                        for (; from < to; from++) {
+                            Log_Addr *pte = phy2log(pti(&_pte[from]));
+                            *pte = phy2pte(alloc(1), flags);
+                        }
                     }
                 }
             }
-        }
 
-        void remap(Phy_Addr addr, long from, long to, Page_Flags flags) {
-            addr = align_page(addr);
-            for( ; from < to; from++) {
-                Log_Addr *pte = phy2log(&_pte[from]);
-                *pte = phy2pte(addr, flags);
-                addr += sizeof(Page);
-            }
-        }   
-
-        // system free
-        void unmap(long from, long to) {
-            for( ; from < to; from++) {
-                free(_pte[from]);
-                Log_Addr * tmp = phy2log(&_pte[from]);
-                *tmp = 0;
-            }
-        }
-
-        // ### ACHO Q É SÓ PRA PRINT (REMOVER?)
-        friend OStream &operator<<(OStream &os, Page_Table &pt)
-        {
-            os << "{\n";
-            for (unsigned int i = 0; i < PT_ENTRIES; i++)
-                if (pt[i])
-                {
-                    os << "[" << i << "] \t" << pde2phy(pt[i]) << " " << hex << pde2flg(pt[i]) << dec << "\n";
+            void remap(Phy_Addr addr, long from, long to, Page_Flags flags) {
+                addr = align_page(addr);
+                for( ; from < to; from++) {
+                    Log_Addr *pte = phy2log(&_pte[from]);
+                    *pte = phy2pte(addr, flags);
+                    addr += sizeof(Page);
                 }
-            os << "}";
-            return os;
-        }
+            }   
 
-    private:
-        PT_Entry _pte[PT_ENTRIES];
+            void unmap(long from, long to) {
+                for( ; from < to; from++) {
+                    free(_pte[from]);
+                    Log_Addr * tmp = phy2log(&_pte[from]);
+                    *tmp = 0;
+                }
+            }
+
+        private:
+            PT_Entry _pte[PT_ENTRIES];
     };
 
     // Chunk (for Segment)
@@ -234,11 +204,6 @@ public:
 
         Phy_Addr pd() const { return _pd; }
 
-        // MODE = Sv39 
-        // ### OLD FUNCTION (VERIFY)
-        // void activate() const { CPU::satp((1UL << 63) | reinterpret_cast<CPU::Reg64>(_pd) >> PT_SHIFT); }
-        void activate() const { CPU::pdp(reinterpret_cast<CPU::Reg64>(_pd)); }
-
         Log_Addr attach(const Chunk & chunk, unsigned long from = pdi(APP_LOW)) {
             for (unsigned long i = from; i < PD_ENTRIES; i++) {
                 for (unsigned long i = 0; i < PT_ENTRIES; i++) {
@@ -277,13 +242,13 @@ public:
                     return;
                 }
             }
-            db<MMU>(WRN) << "MMU::Directory::detach(pt=" << chunk.pt() << ") failed!" << endl;
+            db<MMU>(WRN) << "Sv39_MMU::Directory::detach(pt=" << chunk.pt() << ") failed!" << endl;
         }
 
         void detach(const Chunk & chunk, Log_Addr addr) {
             unsigned long from = directory_bits(addr);
             if(ind((*_pd)[from]) != ind(phy2pde(chunk.at()))) {
-                db<MMU>(WRN) << "MMU::Directory::detach(pt=" << chunk.at() << ",addr=" << addr << ") failed!" << endl;
+                db<MMU>(WRN) << "Sv39_MMU::Directory::detach(pt=" << chunk.at() << ",addr=" << addr << ") failed!" << endl;
                 return;
             }
             detach_pd(from, chunk.ats());
@@ -293,7 +258,7 @@ public:
         Phy_Addr physical(Log_Addr addr) {
             Page_Table * at = reinterpret_cast<Page_Table *>((void *)(*_pd)[pdi(addr)]); // PPN2 -> PPN1
             Page_Table * pt = reinterpret_cast<Page_Table *>((void *)(*at)[ati(addr)]);  // PPN1 -> PPN0
-            Log_Addr pt_entry = pt->get_entry(pti(addr));                               //  PPN0 -> Physical
+            Log_Addr pt_entry = pt->get_entry(pti(addr));                                // PPN0 -> Physical addr
             return addr_without_off(pte2phy(pt_entry)) | off(addr);
         }
 
@@ -308,7 +273,7 @@ public:
             return true;
         }
 
-        // attach to page frame
+        // attach to page
         bool attach_level_0(Page_Table *at, unsigned long n, const Page_Table *pt, unsigned long m, RV64_Flags flags) {
             for (unsigned long i = 0; i < n; i++) {
                 for (unsigned long j = 0; j < m; j++, pt++) {
@@ -342,13 +307,13 @@ public:
         Phy_Addr phy(false);
 
         if(bytes) {
-            // Encontra um bloco cujo numero de bytes requisitados cabe que cabe
+            // Find a bloco which attends the necessity (as we saw in E6)
             List::Element * e = _free.search_decrementing(bytes);
             if(e) {
                 phy = e->object() + e->size();
-                db<MMU>(TRC) << "MMU::alloc(bytes=" << bytes << ") => " << phy << endl;
+                db<MMU>(TRC) << "Sv39_MMU::alloc(bytes=" << bytes << ") => " << phy << endl;
             } else
-                db<MMU>(ERR) << "MMU::alloc() failed" << endl;
+                db<MMU>(ERR) << "Sv39_MMU::alloc() failed" << endl;
         }
         return phy;
     }
@@ -361,7 +326,7 @@ public:
 
     // n = number of addr to be free
     static void free(Phy_Addr addr, unsigned long n = 1) {
-        db<MMU>(TRC) << "MMU::free(addr=" << addr << ",n=" << n << ")" << endl;
+        db<MMU>(TRC) << "Sv39_MMU::free(addr=" << addr << ",n=" << n << ")" << endl;
 
         if(addr && n) {
             List::Element * e = new (addr) List::Element(addr, n);
@@ -372,7 +337,7 @@ public:
 
     static unsigned long allocable() { return _free.head() ? _free.head()->size() : 0; }
 
-    // returns current PNN on SATP (PNN = Page Number of the root page table)
+    // Returns current PNN on SATP (where PNN is the page number of the root page table)
     static Page_Directory * volatile current() { return static_cast<Page_Directory * volatile>(phy2log(CPU::satp() << 12)); }
 
     // Address functions
@@ -380,11 +345,11 @@ public:
     static PD_Entry phy2pde(Phy_Addr bytes) { return ((bytes >> 12) << 10) | RV64_Flags::V; }
     static Phy_Addr pde2phy(PD_Entry entry) { return (entry & ~RV64_Flags::MASK) << 2; }
     static PT_Entry phy2pte(Phy_Addr bytes, RV64_Flags flags) { return ((bytes >> 12) << 10) | flags; }
-    // physical 2 page table attach entry
-    static PT_Entry phy2ptae(Phy_Addr bytes) { return ((bytes >> 12) << 10) | RV64_Flags::NLP; }
+    static PT_Entry phy2ptae(Phy_Addr bytes) { return ((bytes >> 12) << 10) | RV64_Flags::NLP; } // physical to attach entry table
     static Phy_Addr pte2phy(PT_Entry entry) { return (entry & ~RV64_Flags::MASK) << 2; }
     static RV64_Flags pde2flg(PT_Entry entry) { return (entry & RV64_Flags::MASK); }
 
+    // TLB flush functions
     static void flush_tlb() { CPU::flush_tlb(); }
     static void flush_tlb(Log_Addr addr) { CPU::flush_tlb(addr); }
 
@@ -392,6 +357,7 @@ private:
     static void init();
     static Phy_Addr pd() { return _master; }
     static void pd(Phy_Addr pd) { _master = pd; }
+
 private:
     static List _free;
     static Page_Directory * _master;

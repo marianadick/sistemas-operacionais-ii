@@ -11,28 +11,30 @@ typedef unsigned long Reg;
 // timer handler
 extern "C" [[gnu::interrupt, gnu::aligned(8)]] void _mmode_forward()
 {
+    // Retrieve interrupt ID
     Reg id = CPU::mcause();
-    if ((id & CLINT::INT_MASK) == CLINT::IRQ_MAC_TIMER)
-    {
+    if ((id & CLINT::INT_MASK) == CLINT::IRQ_MAC_TIMER) {
         Timer::reset();
-        CPU::sie(CPU::STI);
+        CPU::sie(CPU::STI); // Enable interrupts
     }
     Reg interrupt_id = 1 << ((id & CLINT::INT_MASK) - 2);
+    // Check if interrupts are enabled and the interrupt is enabled in the SIE register
     if (CPU::int_enabled() && (CPU::sie() & (interrupt_id)))
-        CPU::mip(interrupt_id);
+        CPU::mip(interrupt_id); // setting the bit to indicate that the interruption was handled
 }
 
-extern "C" {
+extern "C"
+{
     void _start();
 
     void _int_entry();
 
     // SETUP entry point is in .init (and not in .text), so it will be linked first and will be the first function after the ELF header in the image
-    void _entry() __attribute__ ((used, naked, section(".init")));
+    void _entry() __attribute__((used, naked, section(".init")));
     void _setup();
 
     // LD eliminates this variable while performing garbage collection, that's why the used attribute.
-    char __boot_time_system_info[sizeof(EPOS::S::System_Info)] __attribute__ ((used)) = "<System_Info placeholder>"; // actual System_Info will be added by mkbi!
+    char __boot_time_system_info[sizeof(EPOS::S::System_Info)] __attribute__((used)) = "<System_Info placeholder>"; // actual System_Info will be added by mkbi!
 }
 
 __BEGIN_SYS
@@ -43,179 +45,153 @@ class Setup
 {
 private:
     // Physical memory map
-    static const unsigned long RAM_BASE         = Memory_Map::RAM_BASE;
-    static const unsigned long RAM_TOP          = Memory_Map::RAM_TOP;
-    static const unsigned long MIO_BASE         = Memory_Map::MIO_BASE;
-    static const unsigned long MIO_TOP          = Memory_Map::MIO_TOP;
-    static const unsigned long FREE_BASE        = Memory_Map::FREE_BASE;
-    static const unsigned long FREE_TOP         = Memory_Map::FREE_TOP;
-    static const unsigned long SETUP            = Memory_Map::SETUP;
-    static const unsigned long BOOT_STACK       = Memory_Map::BOOT_STACK;
-    static const unsigned long PAGE_TABLES      = Memory_Map::PAGE_TABLES;
+    static const unsigned long RAM_BASE  = Memory_Map::RAM_BASE;
+    static const unsigned long RAM_TOP   = Memory_Map::RAM_TOP;
+    static const unsigned long APP_LOW   = Memory_Map::APP_LOW;
+    static const unsigned long APP_HIGH  = Memory_Map::APP_HIGH;
+    static const unsigned long MIO_BASE  = Memory_Map::MIO_BASE;
+    static const unsigned long MIO_TOP   = Memory_Map::MIO_TOP;
+    static const unsigned long FREE_BASE = Memory_Map::FREE_BASE;
+    static const unsigned long FREE_TOP  = Memory_Map::FREE_TOP;
+    static const unsigned long SETUP     = Memory_Map::SETUP;
+    static const unsigned long BOOT_STACK  = Memory_Map::BOOT_STACK;
+    static const unsigned long PAGE_TABLES = Memory_Map::PAGE_TABLES;
 
+    static const unsigned int PT_ENTRIES = MMU::PT_ENTRIES;
+    static const unsigned int PD_ENTRIES = PT_ENTRIES;
 
     // Architecture Imports
     typedef CPU::Reg Reg;
     typedef CPU::Phy_Addr Phy_Addr;
     typedef CPU::Log_Addr Log_Addr;
-
     typedef MMU::RV64_Flags RV64_Flags;
     typedef MMU::Page_Table Page_Table;
     typedef MMU::Page_Directory Page_Directory;
-    typedef MMU::PT_Entry PT_Entry;
 
 public:
     Setup();
 
 private:
     void say_hi();
-    unsigned long * add_to_pointer(unsigned long * pointer, unsigned long add, unsigned long mask);
-    void start_mmu();
+    void init_mmu();
     void call_next();
 
 private:
-    System_Info * si;
+    System_Info *si;
 };
-
 
 Setup::Setup()
 {
     Display::init();
     kout << endl;
     kerr << endl;
-    
+
     si = reinterpret_cast<System_Info *>(&__boot_time_system_info);
-    if(si->bm.n_cpus > Traits<Machine>::CPUS)
+    if (si->bm.n_cpus > Traits<Machine>::CPUS)
         si->bm.n_cpus = Traits<Machine>::CPUS;
 
     db<Setup>(TRC) << "Setup(si=" << reinterpret_cast<void *>(si) << ",sp=" << CPU::sp() << ")" << endl;
     db<Setup>(INF) << "Setup:si=" << *si << endl;
 
-    // Print basic facts about this EPOS instance
-    say_hi();
-
-    // Starting MMU
-    start_mmu();
-
-    // SETUP ends here, so let's transfer control to the next stage (INIT or APP)
-    call_next();
+    say_hi();      // Print basic facts about this EPOS instance
+    init_mmu();    // initializing the MMU
+    call_next();   // SETUP ends here, so let's transfer control to the next stage (INIT or APP)
 }
-
 
 void Setup::say_hi()
 {
     db<Setup>(TRC) << "Setup::say_hi()" << endl;
     db<Setup>(INF) << "System_Info=" << *si << endl;
 
-    if(si->bm.application_offset == -1U)
+    if (si->bm.application_offset == -1U)
         db<Setup>(ERR) << "No APPLICATION in boot image, you don't need EPOS!" << endl;
 
-    kout << "This is EPOS!\n" << endl;
+    kout << "This is EPOS!\n"
+         << endl;
     kout << "Setting up this machine as follows: " << endl;
-    kout << "  Mode:         " << ((Traits<Build>::MODE == Traits<Build>::LIBRARY) ? "library" : (Traits<Build>::MODE == Traits<Build>::BUILTIN) ? "built-in" : "kernel") << endl;
-    kout << "  Processor:    " << Traits<Machine>::CPUS << " x RV" << Traits<CPU>::WORD_SIZE << " at " << Traits<CPU>::CLOCK / 1000000 << " MHz (BUS clock = " << Traits<Machine>::HFCLK / 1000000 << " MHz)" << endl;
+    kout << "  Mode:         " << ((Traits<Build>::MODE == Traits<Build>::LIBRARY) ? "library" : (Traits<Build>::MODE == Traits<Build>::BUILTIN) ? "built-in"
+                                                                                                                                                 : "kernel")
+         << endl;
+    kout << "  Processor:    " << Traits<Machine>::CPUS << " x RV" << Traits<CPU>::WORD_SIZE << " at " << Traits<CPU>::CLOCK / 1000000 << " MHz (BUS clock = " << Traits<CPU>::CLOCK / 1000000 << " MHz)" << endl;
     kout << "  Machine:      SiFive-U" << endl;
-    kout << "  Memory:       " << (RAM_TOP + 1 - RAM_BASE) / (1024*1024) << " MB [" << reinterpret_cast<void *>(RAM_BASE) << ":" << reinterpret_cast<void *>(RAM_TOP) << "]" << endl;
-    kout << "  User memory:  " << (FREE_TOP - FREE_BASE) / (1024*1024) << " MB [" << reinterpret_cast<void *>(FREE_BASE) << ":" << reinterpret_cast<void *>(FREE_TOP) << "]" << endl;
-    kout << "  I/O space:    " << (MIO_TOP + 1 - MIO_BASE) / (1024*1024) << " MB [" << reinterpret_cast<void *>(MIO_BASE) << ":" << reinterpret_cast<void *>(MIO_TOP) << "]" << endl;
+    kout << "  Memory:       " << (RAM_TOP + 1 - RAM_BASE) / (1024 * 1024) << " MB [" << reinterpret_cast<void *>(RAM_BASE) << ":" << reinterpret_cast<void *>(RAM_TOP) << "]" << endl;
+    kout << "  User memory:  " << (FREE_TOP - FREE_BASE) / (1024 * 1024) << " MB [" << reinterpret_cast<void *>(FREE_BASE) << ":" << reinterpret_cast<void *>(FREE_TOP) << "]" << endl;
+    kout << "  I/O space:    " << (MIO_TOP + 1 - MIO_BASE) / (1024 * 1024) << " MB [" << reinterpret_cast<void *>(MIO_BASE) << ":" << reinterpret_cast<void *>(MIO_TOP) << "]" << endl;
     kout << "  Node Id:      ";
-
-    if(si->bm.node_id != -1)
+    if (si->bm.node_id != -1)
         kout << si->bm.node_id << " (" << Traits<Build>::NODES << ")" << endl;
     else
         kout << "will get from the network!" << endl;
     kout << "  Position:     ";
-    if(si->bm.space_x != -1)
+    if (si->bm.space_x != -1)
         kout << "(" << si->bm.space_x << "," << si->bm.space_y << "," << si->bm.space_z << ")" << endl;
     else
         kout << "will get from the network!" << endl;
-    if(si->bm.extras_offset != -1UL)
+    if (si->bm.extras_offset != -1UL)
         kout << "  Extras:       " << si->lm.app_extra_size << " bytes" << endl;
 
     kout << endl;
 }
 
-unsigned long* Setup::add_to_pointer(unsigned long * pointer, unsigned long add, unsigned long mask = ~(0UL)) {
-    return reinterpret_cast<unsigned long *>((reinterpret_cast<unsigned long>(pointer) + add) & mask);
-}
+void Setup::init_mmu()
+{
+    // Useful variables
+    unsigned int PG_SIZE = 4096;
+    unsigned int PT_ENTRIES = MMU::PT_ENTRIES;
+    unsigned long pages = MMU::pages(RAM_TOP + 1);
+    unsigned total_pts = MMU::page_tables(pages);
 
-void Setup::start_mmu() {
-    // create _master under the PAGE_TABLE address
-    /*
-    Page_Directory *_master = MMU::current();
-    unsigned long pd = Traits<Machine>::PAGE_TABLE;
-    _master = new ((void *)pd) Page_Directory();
-    */
+    unsigned int PD_ENTRIES_LVL_2 = total_pts / PT_ENTRIES;
+    unsigned int PD_ENTRIES_LVL_1 = PT_ENTRIES;
+    unsigned int PT_ENTRIES_LVL_0 = PT_ENTRIES;
 
-    // qtt of pages for (RAM_TOP + 1) - RAM_BASE
-    /*
-    unsigned pages = MMU::pages(Traits<Machine>::RAM_TOP + 1 - Traits<Machine>::RAM_BASE);
-    unsigned entries = MMU::page_tables(pages);
-    _master->remap(pd, 0, entries, RV64_Flags::V);
-    */
-    kout << "cheguei na start mmu\n" << endl;
-    const unsigned int PAGE_SIZE = Sv39_MMU::PAGE_SIZE;
-    const unsigned int PT_ENTRIES = Sv39_MMU::PT_ENTRIES;
+    kout << "Total Pages: " << pages << endl;
+    kout << "Total Page Tables: " << total_pts << endl;
 
-    // Calculate the number of pages needed for the physical memory
-    const unsigned long pages = MMU::pages(RAM_TOP);
+    Phy_Addr PD2_ADDR = PAGE_TABLES;
+    Page_Directory * master = new ((void *)PD2_ADDR) Page_Directory();
+    kout << "Master Base Address: " << PD2_ADDR << endl;
+    PD2_ADDR += PG_SIZE;
 
-    // Calculate the number of entries in the second-level page directory
-    const unsigned int PD_ENTRIES_LV2 = Sv39_MMU::page_tables(pages);
+    master->remap(PD2_ADDR, RV64_Flags::V, 0, PD_ENTRIES_LVL_2);
 
-    // Calculate the number of entries in the first-level page directory
-    const unsigned int PD_ENTRIES_LV1 = pages > PT_ENTRIES ? PT_ENTRIES : pages;
+    Phy_Addr PD1_ADDR = PD2_ADDR + PT_ENTRIES * PG_SIZE;
+    Phy_Addr PT0_ADDR = PD1_ADDR;
 
-    // Calculate the number of entries in the zeroth-level page table
-    const unsigned int PT_ENTRIES_LV0 = pages > PT_ENTRIES ? PT_ENTRIES : pages;
+    for (unsigned long i = 0; i < PD_ENTRIES_LVL_2; i++) {
+        Page_Directory *pd_lv1 = new ((void *)PD2_ADDR) Page_Directory();
+        PD2_ADDR += PG_SIZE;
 
-    // Print some debug information
-    db<Setup>(TRC) << "Setup MMU! (PD_ENTRIES_LV2=" << PD_ENTRIES_LV2 << ", PD_ENTRIES_LV1=" << PD_ENTRIES_LV1 << ", PT_ENTRIES_LV0=" << PT_ENTRIES_LV0 << ")" << endl;
-    kout << "setup mmu!\n" << endl;
+        pd_lv1->remap(PD1_ADDR, RV64_Flags::V, 0, PD_ENTRIES_LVL_1);
+        PD1_ADDR += PD_ENTRIES_LVL_1 * PG_SIZE;
+    }
 
-    // Allocate memory for the page tables
-    unsigned long *page_tables_location = reinterpret_cast<unsigned long*>(PAGE_TABLES);
-
-    // Print some debug information
-    db<Setup>(TRC) << "Setup::enable_paging(page_tables_location=" << page_tables_location << ")" << endl;
-    kout << "enable paging!\n" << endl;
-
-    // Create the second-level page directory
-    Page_Directory* pd_lv2 = new (page_tables_location) Page_Directory();
-    page_tables_location = add_to_pointer(page_tables_location, PAGE_SIZE);
-
-    // Remap the page tables
-    pd_lv2->remap(page_tables_location, 0, PD_ENTRIES_LV2, RV64_Flags::PD);
-
-    // Create the first-level page directories
-    for (unsigned long i = 0; i < PD_ENTRIES_LV2; i++) {
-        Page_Directory * pd_lv1 = new (page_tables_location) Page_Directory();
-        page_tables_location = add_to_pointer(page_tables_location, PAGE_SIZE);
-
-        // Remap the physical memory
-        pd_lv1->remap(page_tables_location, 0, PD_ENTRIES_LV1, RV64_Flags::PD);
-
-        // Create the zeroth-level page tables
-        for (unsigned long j = 0; j < PD_ENTRIES_LV1; j++) {
-            Page_Table * pt_lv0 = new (page_tables_location) Page_Table();
-            page_tables_location = add_to_pointer(page_tables_location, PAGE_SIZE);
-
-            // Remap the memory
-            pt_lv0->remap((PT_ENTRIES_LV0 * PAGE_SIZE * (j + (i * PD_ENTRIES_LV1))), 0, PT_ENTRIES_LV0, RV64_Flags::SYS);
+    // Reseting PD1_ADDR so we can continue the mapping
+    PD1_ADDR = 0;
+    for (unsigned long i = 0; i < PD_ENTRIES_LVL_2; i++) {
+        for (unsigned long j = 0; j < PD_ENTRIES_LVL_1; j++) {
+            Page_Table *pt_lv0 = new ((void *)PT0_ADDR) Page_Table();
+            PT0_ADDR += PG_SIZE;
+            pt_lv0->remap(PD1_ADDR, RV64_Flags::SYS, 0, PT_ENTRIES_LVL_0);
+            PD1_ADDR += PD_ENTRIES_LVL_1 * PG_SIZE;
         }
     }
 
-    // Set the address of the second-level page directory in the SATP register
-    CPU::satp((1UL << 63) | (reinterpret_cast<unsigned long>(pd_lv2) >> 12));
-    kout << "antes do flush tlb!\n" << endl;
+    kout << "Page Directory LVL1 Address: " << PD1_ADDR << endl;
+    kout << "Page Directory End Address: " << PD2_ADDR << endl;
 
-    // Flush the TLB
-    MMU::flush_tlb();
-    kout << "flush tlb\n" << endl;
+    db<Setup>(INF) << "Set SATP" << endl;
+    CPU::satp((1UL << 63) | (reinterpret_cast<unsigned long>(master) >> 12)); // Set SATP and enable paging
+    kout << "satp value: " << master << endl << "Trying to flush the TLB..." << endl;
+
+    db<Setup>(INF) << "Flush TLB" << endl;
+    MMU::flush_tlb(); // Flush TLB to ensure we've got the right memory organization
+    kout << "TLB Flush end" << endl;
 }
 
-void Setup::call_next() {
-    db<Setup>(INF) << "SETUP almost ready!" << endl;
+void Setup::call_next()
+{
+    db<Setup>(INF) << "SETUP almost ready" << endl;
 
     CPU::sie(CPU::SSI | CPU::STI | CPU::SEI);
     CPU::sstatus(CPU::SPP_S);
@@ -230,9 +206,10 @@ void Setup::call_next() {
 __END_SYS
 
 using namespace EPOS::S;
+
 void _entry() // machine mode
 {
-    // SiFive-U core 0 doesn't have MMU
+    // SiFive-U core 0 doesn't have MMU, so we halt it
     if (CPU::mhartid() == 0)
         CPU::halt();
 
@@ -240,18 +217,14 @@ void _entry() // machine mode
     CPU::satp(0);
     Machine::clear_bss();
 
-    // need to check?
     // set the stack pointer, thus creating a stack for SETUP
     CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE - sizeof(long));
 
     // Set up the Physical Memory Protection registers correctly
-    // A = NAPOT, X, R, W
-    CPU::pmpcfg0(0x1f);
-    // All memory
-    CPU::pmpaddr0((1UL << 55) - 1);
+    CPU::pmpcfg0(0x1f);             // A = NAPOT, X, R, W
+    CPU::pmpaddr0((1UL << 55) - 1); // All memory
 
-    // Delegate all traps to supervisor
-    // Timer will not be delegated due to architecture reasons.
+    // Delegate all traps to supervisor except for the timer (architecture decisions)
     CPU::mideleg(CPU::SSI | CPU::STI | CPU::SEI);
     CPU::medeleg(0xffff);
 
@@ -260,15 +233,16 @@ void _entry() // machine mode
     CLINT::mtvec(CLINT::DIRECT, CPU::Reg(&_mmode_forward)); // setup a preliminary machine mode interrupt handler pointing it to _mmode_forward
 
     // MPP_S = change to supervirsor
-    // MPIE = otherwise we won't ever receive interrupts
+    // MPIE  = otherwise we won't ever receive interrupts
     CPU::mstatus(CPU::MPP_S | CPU::MPIE);
-    CPU::mepc(CPU::Reg(&_setup)); // entry = _setup
-    CPU::mret();                  // enter supervisor mode at setup (mepc) with interrupts enabled (mstatus.mpie = true)
+    CPU::mepc(CPU::Reg(&_setup));           // entry = _setup
+    CPU::mret();                            // enter supervisor mode at setup (mepc) with interrupts enabled (mstatus.mpie = true)
 }
+
 void _setup() // supervisor mode
 {
-    kerr  << endl;
-    kout  << endl;
+    kerr << endl;
+    kout << endl;
 
     Setup setup;
 }

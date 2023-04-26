@@ -212,7 +212,7 @@ public:
     static Reg fr() { Reg r; ASM("mv %0, a0" :  "=r"(r)); return r; }
     static void fr(Reg r) {  ASM("mv a0, %0" : : "r"(r) :); }
 
-    // ### new implemented functions (P2 related)
+    // New implemented functions (P2 related)
     static Reg pdp() { return satp() << 12; }
     static void pdp(Reg pdp) { satp((1UL << 63) | (pdp >> 12)); }
 
