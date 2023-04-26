@@ -139,46 +139,48 @@ void Setup::init_mmu()
     unsigned int PG_SIZE = 4096;
     unsigned int PT_ENTRIES = MMU::PT_ENTRIES;
     unsigned long pages = MMU::pages(RAM_TOP + 1);
-    unsigned total_pts = MMU::page_tables(pages);
+    unsigned int L0_ENTRIES = PT_ENTRIES;
+    unsigned int L1_ENTRIES = PT_ENTRIES;
+    unsigned int L2_ENTRIES = MMU::PD_ENTRIES;
 
-    unsigned int PD_ENTRIES_LVL_2 = total_pts / PT_ENTRIES;
-    unsigned int PD_ENTRIES_LVL_1 = PT_ENTRIES;
-    unsigned int PT_ENTRIES_LVL_0 = PT_ENTRIES;
+    unsigned int L0_PT_SIZE = L1_ENTRIES * PG_SIZE;
+    unsigned int L1_PT_SIZE = L2_ENTRIES * PG_SIZE;
+ 
+    unsigned int L2_TABLES = (pages + L2_ENTRIES - 1) / L2_ENTRIES;
+    unsigned int L1_TABLES = (L2_TABLES + L1_ENTRIES - 1) / L1_ENTRIES;
+    unsigned int L0_TABLES = (L1_TABLES + L0_ENTRIES - 1) / L0_ENTRIES;
 
     kout << "Total Pages: " << pages << endl;
-    kout << "Total Page Tables: " << total_pts << endl;
+    kout << "L0 Page Tables: " << L0_TABLES << endl;
+    kout << "L1 Page Tables: " << L1_TABLES << endl;
+    kout << "L2 Page Tables: " << L2_TABLES << endl;
 
-    Phy_Addr PD2_ADDR = PAGE_TABLES;
-    Page_Directory * master = new ((void *)PD2_ADDR) Page_Directory();
-    kout << "Master Base Address: " << PD2_ADDR << endl;
-    PD2_ADDR += PG_SIZE;
+    Phy_Addr L0_PT_ADDR = PAGE_TABLES;
+    Phy_Addr L1_PT_ADDR = L0_PT_ADDR + L0_TABLES * L0_PT_SIZE;
+    Phy_Addr L2_PT_ADDR = L1_PT_ADDR + L1_TABLES * L1_PT_SIZE;
 
-    master->remap(PD2_ADDR, RV64_Flags::V, 0, PD_ENTRIES_LVL_2);
+    Page_Directory * master = new ((void *)L2_PT_ADDR) Page_Directory();
+    kout << "Master Base Address: " << L2_PT_ADDR << endl;
 
-    Phy_Addr PD1_ADDR = PD2_ADDR + PT_ENTRIES * PG_SIZE;
-    Phy_Addr PT0_ADDR = PD1_ADDR;
+    master->remap(L1_PT_ADDR, RV64_Flags::V, 0, L1_ENTRIES);
 
-    for (unsigned long i = 0; i < PD_ENTRIES_LVL_2; i++) {
-        Page_Directory *pd_lv1 = new ((void *)PD2_ADDR) Page_Directory();
-        PD2_ADDR += PG_SIZE;
+    for (unsigned long i = 0; i < L1_TABLES; i++) {
+        Page_Table *pd_lv1 = new ((void *)L1_PT_ADDR) Page_Table();
+        L1_PT_ADDR += L1_PT_SIZE;
 
-        pd_lv1->remap(PD1_ADDR, RV64_Flags::V, 0, PD_ENTRIES_LVL_1);
-        PD1_ADDR += PD_ENTRIES_LVL_1 * PG_SIZE;
-    }
+        pd_lv1->remap(L0_PT_ADDR, RV64_Flags::V, 0, L0_ENTRIES);
 
-    // Reseting PD1_ADDR so we can continue the mapping
-    PD1_ADDR = 0;
-    for (unsigned long i = 0; i < PD_ENTRIES_LVL_2; i++) {
-        for (unsigned long j = 0; j < PD_ENTRIES_LVL_1; j++) {
-            Page_Table *pt_lv0 = new ((void *)PT0_ADDR) Page_Table();
-            PT0_ADDR += PG_SIZE;
-            pt_lv0->remap(PD1_ADDR, RV64_Flags::SYS, 0, PT_ENTRIES_LVL_0);
-            PD1_ADDR += PD_ENTRIES_LVL_1 * PG_SIZE;
+        for (unsigned long j = 0; j < L0_TABLES; j++) {
+            Page_Table *pt_lv0 = new ((void *)L0_PT_ADDR) Page_Table();
+            L0_PT_ADDR += L0_PT_SIZE;
+
+            pt_lv0->remap(j * L0_ENTRIES * PG_SIZE, RV64_Flags::V, 0, L0_ENTRIES);
         }
     }
 
-    kout << "Page Directory LVL1 Address: " << PD1_ADDR << endl;
-    kout << "Page Directory End Address: " << PD2_ADDR << endl;
+    kout << "L0 Page Table Address: " << L0_PT_ADDR << endl;
+    kout << "L1 Page Table Address: " << L1_PT_ADDR << endl;
+    kout << "L2 Page Table End Address: " << L2_PT_ADDR <<endl;
 
     db<Setup>(INF) << "Set SATP" << endl;
     CPU::satp((1UL << 63) | (reinterpret_cast<unsigned long>(master) >> 12)); // Set SATP and enable paging
