@@ -8,19 +8,18 @@
 using namespace EPOS::S;
 typedef unsigned long Reg;
 
-// timer handler
+// timer handler (from 2022_2)
 extern "C" [[gnu::interrupt, gnu::aligned(8)]] void _mmode_forward()
 {
-    // Retrieve interrupt ID
+    
     Reg id = CPU::mcause();
     if ((id & CLINT::INT_MASK) == CLINT::IRQ_MAC_TIMER) {
         Timer::reset();
-        CPU::sie(CPU::STI); // Enable interrupts
+        CPU::sie(CPU::STI); 
     }
     Reg interrupt_id = 1 << ((id & CLINT::INT_MASK) - 2);
-    // Check if interrupts are enabled and the interrupt is enabled in the SIE register
     if (CPU::int_enabled() && (CPU::sie() & (interrupt_id)))
-        CPU::mip(interrupt_id); // setting the bit to indicate that the interruption was handled
+        CPU::mip(interrupt_id); 
 }
 
 extern "C"
@@ -36,6 +35,7 @@ extern "C"
     // LD eliminates this variable while performing garbage collection, that's why the used attribute.
     char __boot_time_system_info[sizeof(EPOS::S::System_Info)] __attribute__((used)) = "<System_Info placeholder>"; // actual System_Info will be added by mkbi!
 }
+
 
 __BEGIN_SYS
 
@@ -75,6 +75,7 @@ private:
     void say_hi();
     void init_mmu();
     void call_next();
+    void init_mmu_flat_paging();
 
 private:
     System_Info *si;
@@ -93,9 +94,18 @@ Setup::Setup()
     db<Setup>(TRC) << "Setup(si=" << reinterpret_cast<void *>(si) << ",sp=" << CPU::sp() << ")" << endl;
     db<Setup>(INF) << "Setup:si=" << *si << endl;
 
-    say_hi();      // Print basic facts about this EPOS instance
-    init_mmu();    // initializing the MMU
-    call_next();   // SETUP ends here, so let's transfer control to the next stage (INIT or APP)
+    say_hi();      
+    /*
+        if we were in the multitask option, we would need to build the logical memory model and the physical memory model to map them and enable paging,
+        we started this map in the mmu_init() method but the flush tlb was getting stuck.
+
+        The approach we used was to map 1x1, inspired by  the ARMv7 flat paging. We were able to flush the tlb and call the next function, but the function is not being properly called given
+        the alterations in the memory map. 
+    
+    */
+    
+    init_mmu_flat_paging();
+    call_next();   
 }
 
 void Setup::say_hi()
@@ -133,6 +143,43 @@ void Setup::say_hi()
     kout << endl;
 }
 
+void Setup::init_mmu_flat_paging(){
+    //This function will map pmm == lm instead of properly map those to enable paging
+
+    Machine::clear_bss();
+
+    Reg page_tables = Traits<Machine>::PAGE_TABLES;
+
+    Page_Directory * master = new ((void *)page_tables) Page_Directory();
+
+    unsigned sys_entries = 512 + MMU::page_tables(MMU::pages(Traits<Machine>::RAM_TOP + 1 - Traits<Machine>::RAM_BASE));
+
+    master->remap(page_tables + 4096, RV64_Flags::V, 0, sys_entries);
+
+    
+    for(unsigned i = 0; i < sys_entries; i++)
+    {
+        Page_Table * pt = new ( (void *)(page_tables + 4*1024*(i+1)) ) Page_Table();
+        pt->remap(i * 1024*4096, RV64_Flags::U | RV64_Flags::R | RV64_Flags::X, 0, i * 1024*4096);
+    }
+
+    db<Setup>(INF) << "Set SATP" << endl;
+    CPU::satp((1UL << 60) | (reinterpret_cast<unsigned long>(master) >> 12)); // Set SATP and enable paging
+    kout << "satp value: " << master << endl << "Trying to flush the TLB..." << endl;
+
+    db<Setup>(INF) << "Flush TLB" << endl;
+    MMU::flush_tlb(); 
+    kout << "TLB FLUSHED" << endl;
+    Display::init(); 
+    
+
+}
+
+/*
+    Attempt of properly initializing the mmu 
+    We still need build the memory model and correctly set it
+
+*/
 void Setup::init_mmu()
 {
     // Useful variables
@@ -193,52 +240,57 @@ void Setup::init_mmu()
 
 void Setup::call_next()
 {
-    db<Setup>(INF) << "SETUP almost ready" << endl;
+    kout << "Call next is being called" << endl;
 
-    CPU::sie(CPU::SSI | CPU::STI | CPU::SEI);
-    CPU::sstatus(CPU::SPP_S);
 
-    CPU::sepc(CPU::Reg(&_start));
-    CLINT::stvec(CLINT::DIRECT, CPU::Reg(&_int_entry));
+    // Check for next stage and obtain the entry point
+    void (*next_stage)() = reinterpret_cast<void (*)()>(&_start);
 
-    CPU::sret();
-    db<Setup>(ERR) << "OS failed to init!" << endl;
+    if (!next_stage) {
+        kout << "Next stage entry point is null!" << endl;
+        return;
+    }
+
+    kout << "Calling next stage at address: " << &next_stage << endl;
+
+    // Call next stage
+    next_stage();
+
+    // Error handling in case next stage doesn't return
+    kout << "Next stage failed to return!" << endl;
 }
 
 __END_SYS
 
 using namespace EPOS::S;
 
+
+// Inspired by the 2022_2 version
 void _entry() // machine mode
 {
-    // SiFive-U core 0 doesn't have MMU, so we halt it
+    
     if (CPU::mhartid() == 0)
         CPU::halt();
 
-    // ensure that sapt is 0
+    
     CPU::satp(0);
     Machine::clear_bss();
 
-    // set the stack pointer, thus creating a stack for SETUP
     CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE - sizeof(long));
 
-    // Set up the Physical Memory Protection registers correctly
     CPU::pmpcfg0(0x1f);             // A = NAPOT, X, R, W
     CPU::pmpaddr0((1UL << 55) - 1); // All memory
 
-    // Delegate all traps to supervisor except for the timer (architecture decisions)
     CPU::mideleg(CPU::SSI | CPU::STI | CPU::SEI);
     CPU::medeleg(0xffff);
 
-    CPU::mies(CPU::MSI | CPU::MTI | CPU::MEI);              // enable interrupts generation by CLINT
-    CPU::mint_disable();                                    // (mstatus) disable interrupts (they will be reenabled at Init_End)
-    CLINT::mtvec(CLINT::DIRECT, CPU::Reg(&_mmode_forward)); // setup a preliminary machine mode interrupt handler pointing it to _mmode_forward
+    CPU::mies(CPU::MSI | CPU::MTI | CPU::MEI);              
+    CPU::mint_disable();                                   
+    CLINT::mtvec(CLINT::DIRECT, CPU::Reg(&_mmode_forward)); 
 
-    // MPP_S = change to supervirsor
-    // MPIE  = otherwise we won't ever receive interrupts
     CPU::mstatus(CPU::MPP_S | CPU::MPIE);
     CPU::mepc(CPU::Reg(&_setup));           // entry = _setup
-    CPU::mret();                            // enter supervisor mode at setup (mepc) with interrupts enabled (mstatus.mpie = true)
+    CPU::mret();                            
 }
 
 void _setup() // supervisor mode
