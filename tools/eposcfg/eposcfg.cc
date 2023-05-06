@@ -40,11 +40,11 @@ char tokens[TOKENS][STRING_SIZE] = {
     "RAM_BASE",
     "RAM_TOP",
     "MEM_SIZE",
-    "MEM_SIZE_KB",
+    "MEM_SIZE_MB",
     "MIO_BASE",
     "MIO_TOP",
     "MIO_SIZE",
-    "MIO_SIZE_KB",
+    "MIO_SIZE_MB",
     "BOOT_STACK",
     "BOOT",
     "IMAGE",
@@ -210,8 +210,8 @@ void populate_strings()
     snprintf(string, STRING_SIZE, iformat, Memory_Map::RAM_TOP + 1 - Memory_Map::RAM_BASE);
     set_token_value("MEM_SIZE", string);
 
-    snprintf(string, STRING_SIZE, iformat, (Memory_Map::RAM_TOP + 1 - Memory_Map::RAM_BASE) / 1024);
-    set_token_value("MEM_SIZE_KB", string);
+    snprintf(string, STRING_SIZE, iformat, (Memory_Map::RAM_TOP + 1 - Memory_Map::RAM_BASE) / (1024 * 1024));
+    set_token_value("MEM_SIZE_MB", string);
 
     snprintf(string, STRING_SIZE, iformat, Memory_Map::MIO_BASE);
     set_token_value("MIO_BASE", string);
@@ -222,8 +222,8 @@ void populate_strings()
     snprintf(string, STRING_SIZE, iformat, Memory_Map::MIO_TOP + 1 - Memory_Map::MIO_BASE);
     set_token_value("MIO_SIZE", string);
 
-    snprintf(string, STRING_SIZE, iformat, (Memory_Map::MIO_TOP + 1 - Memory_Map::MIO_BASE) / 1024);
-    set_token_value("MIO_SIZE_KB", string);
+    snprintf(string, STRING_SIZE, iformat, (Memory_Map::MIO_TOP + 1 - Memory_Map::MIO_BASE) / (1024 * 1024));
+    set_token_value("MIO_SIZE_MB", string);
 
     if(Memory_Map::BOOT_STACK != Memory_Map::NOT_USED)
         snprintf(string, STRING_SIZE, iformat, Memory_Map::BOOT_STACK);

@@ -10,8 +10,8 @@ __BEGIN_SYS
 struct Memory_Map
 {
 private:
+    static const bool multitask = Traits<System>::multitask;
     static const bool emulated = (Traits<CPU>::WORD_SIZE != 64); // specifying a SiFive-U with RV32 sets QEMU machine to Virt
-    static const bool multitask = false;
 
 public:
     enum : unsigned long {
@@ -22,11 +22,12 @@ public:
         RAM_TOP         = Traits<Machine>::RAM_TOP,
         MIO_BASE        = Traits<Machine>::MIO_BASE,
         MIO_TOP         = Traits<Machine>::MIO_TOP,
-
-        BOOT_STACK      = Traits<Machine>::BOOT_STACK, // stack's base
-        FREE_BASE       = Traits<Machine>::FREE_BASE,
-        FREE_TOP        = Traits<Machine>::FREE_TOP,
-        PAGE_TABLES     = Traits<Machine>::PAGE_TABLES,
+        LAST_PAGE       = RAM_TOP + 1 - 4096,
+        INT_M2S         = LAST_PAGE,   		// with multitasking, the last page is used by the _int_m2s() machine mode interrupt forwarder installed by SETUP before going into supervisor mode; code and stack share the same page, with code at the bottom and the stack at the top
+        FLAT_MEM_MAP    = LAST_PAGE,       	// in LIBRARY mode, the last page is used for a single-level mapping of the whole memory space
+        BOOT_STACK      = LAST_PAGE - Traits<Machine>::STACK_SIZE, // will be used as the stack's base, not the stack pointer
+        FREE_BASE       = RAM_BASE,
+        FREE_TOP        = BOOT_STACK,
 
         // Memory-mapped devices
         BIOS_BASE       = 0x00001000,   // BIOS ROM
@@ -41,7 +42,9 @@ public:
         OTP_BASE        = emulated ? NOT_USED : 0x10070000,   // SiFive-U OTP
         ETH_BASE        = emulated ? NOT_USED : 0x10090000,   // SiFive-U Ethernet
         FLASH_BASE      = 0x20000000,   // Virt / SiFive-U Flash
-        QSPI1_BASE      = 0x10050000,
+        SPI0_BASE       = 0x10040000,   // SiFive-U QSPI 0
+        SPI1_BASE       = 0x10041000,   // SiFive-U QSPI 1
+        SPI2_BASE       = 0x10050000,   // SiFive-U QSPI 2
 
         // Physical Memory at Boot
         BOOT            = Traits<Machine>::BOOT,
@@ -61,14 +64,14 @@ public:
         IO              = Traits<Machine>::IO,
 
         SYS             = Traits<Machine>::SYS,
-        SYS_CODE        = Traits<Machine>::SYS_CODE,
-        SYS_INFO        = Traits<Machine>::SYS_INFO,
-        SYS_PT          = Traits<Machine>::SYS_PT,
-        SYS_PD          = Traits<Machine>::SYS_PD,
-        SYS_DATA        = Traits<Machine>::SYS_DATA,
-        SYS_STACK       = Traits<Machine>::SYS_STACK,
-        SYS_HEAP        = Traits<Machine>::SYS_HEAP,
-        SYS_HIGH        = Traits<Machine>::SYS_HIGH
+        SYS_CODE        = multitask ? SYS + 0x00000000 : NOT_USED,
+        SYS_INFO        = multitask ? SYS + 0x00100000 : NOT_USED,
+        SYS_PT          = multitask ? SYS + 0x00101000 : NOT_USED,
+        SYS_PD          = multitask ? SYS + 0x00102000 : NOT_USED,
+        SYS_DATA        = multitask ? SYS + 0x00103000 : NOT_USED,
+        SYS_STACK       = multitask ? SYS + 0x00200000 : NOT_USED,
+        SYS_HEAP        = multitask ? SYS + 0x00400000 : NOT_USED,
+        SYS_HIGH        = multitask ? SYS + 0x007fffff : NOT_USED
     };
 };
 

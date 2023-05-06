@@ -19,7 +19,7 @@ template<> struct Traits<Build>: public Traits_Tokens
 
     // Default flags
     static const bool enabled = true;
-    static const bool monitored = false;
+    static const bool monitored = true;
     static const bool debugged = true;
     static const bool hysterically_debugged = false;
 
@@ -103,7 +103,8 @@ template<> struct Traits<Application>: public Traits<Build>
 template<> struct Traits<System>: public Traits<Build>
 {
     static const unsigned int mode = Traits<Build>::MODE;
-    static const bool multithread = (Traits<Application>::MAX_THREADS > 1);
+    static const bool multithread = (Traits<Build>::CPUS > 1) || (Traits<Application>::MAX_THREADS > 1);
+    static const bool multitask = (mode != Traits<Build>::LIBRARY);
     static const bool multiheap = true;
 
     static const unsigned long LIFE_SPAN = 1 * YEAR; // s

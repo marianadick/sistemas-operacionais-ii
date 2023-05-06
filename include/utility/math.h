@@ -104,19 +104,19 @@ inline float fast_log(float val)
 }
 
 template <typename T>
-const T & min(const T & x, const T & y)
+constexpr T min(T x, T y)
 {
     return (x <= y) ? x : y;
 }
 
 template <typename T>
-const T & max(const T & x, const T & y)
+constexpr T max(T x, T y)
 {
     return (x > y) ? x : y;
 }
 
 template <typename T>
-T abs(const T & x)
+constexpr T abs(T x)
 {
     return (x > 0) ? x : -x;
 }

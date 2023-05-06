@@ -21,6 +21,9 @@ endif
 
 DEBUGGER	:= $(MACH_DEBUGGER)
 ifeq ($(DEBUG),1)
+ifeq ($(MMOD),sifive_u)
+DEBUGGER	:= $(DEBUGGER) -ex "set arch riscv:rv64" -ex "add-inferior" -ex "inferior 2" -ex "attach 2"
+endif
 ifneq ($(wildcard $(IMG)/setup_$(MMOD)),)
 DEBUGGER	:= $(DEBUGGER) -ex "add-symbol-file $(call DBSEC,$(SRC)/setup/setup_$(MMOD),.text)"
 endif

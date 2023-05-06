@@ -1,4 +1,4 @@
-// EPOS RISC-V 64 MMU Mediator Initialization
+// EPOS RISC-V 32 MMU Mediator Initialization
 
 #include <architecture/mmu.h>
 #include <system.h>
@@ -7,7 +7,7 @@
 
 __BEGIN_SYS
 
-void SV39_MMU::init()
+void SV32_MMU::init()
 {
     db<Init, MMU>(TRC) << "MMU::init()" << endl;
 

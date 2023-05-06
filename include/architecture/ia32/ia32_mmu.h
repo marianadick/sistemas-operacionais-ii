@@ -33,7 +33,7 @@ public:
     public:
         enum {
             PRE  = 1 <<  0, // Present (0=not-present, 1=present)
-            RW   = 1 <<  1, // Writable (0=read-only, 1=read-write)
+            WR   = 1 <<  1, // Writable (0=read-only, 1=read-write)
             USR  = 1 <<  2, // Access Control (0=supervisor, 1=user)
             PWT  = 1 <<  3, // Cache mode (0=write-back, 1=write-through)
             PCD  = 1 <<  4, // Cache disable (0=cacheable, 1=non-cacheable)
@@ -44,10 +44,10 @@ public:
             EX   = 1 <<  9, // User Def. (0=non-executable, 1=executable)
             CT   = 1 << 10, // User Def. (0=non-contiguous, 1=contiguous)
             IO   = 1 << 11, // User Def. (0=memory, 1=I/O)
-            APP  = (PRE | RW  | ACC | USR),
+            APP  = (PRE | WR  | ACC | USR),
             APPC = (PRE | EX  | ACC | USR),
-            APPD = (PRE | RW  | ACC | USR),
-            SYS  = (PRE | RW  | ACC),
+            APPD = (PRE | WR  | ACC | USR),
+            SYS  = (PRE | WR  | ACC),
             PCI  = (SYS | PCD | IO),
             APIC = (SYS | PCD),
             VGA  = (SYS | PCD),
@@ -59,7 +59,7 @@ public:
         Page_Flags() {}
         Page_Flags(unsigned long f) : _flags(f) {}
         Page_Flags(Flags f) : _flags(PRE | ACC |
-                                    ((f & Flags::RW)  ? RW  : 0) |
+                                    ((f & Flags::WR)  ? WR  : 0) |
                                     ((f & Flags::USR) ? USR : 0) |
                                     ((f & Flags::CWT) ? PWT : 0) |
                                     ((f & Flags::CD)  ? PCD : 0) |
@@ -170,7 +170,7 @@ public:
         unsigned int size() const { return (_to - _from) * sizeof(Page); }
 
         Phy_Addr phy_address() const {
-            return (_flags & Page_Flags::CT) ? Phy_Addr(ind((*_pt)[_from])) : Phy_Addr(false);
+            return (_flags & Page_Flags::CT) ? Phy_Addr(unflag((*_pt)[_from])) : Phy_Addr(false);
         }
 
         int resize(unsigned int amount) {
@@ -246,7 +246,7 @@ public:
 
         void detach(const Chunk & chunk) {
             for(unsigned int i = 0; i < PD_ENTRIES; i++) {
-                if(ind(pte2phy((*_pd)[i])) == ind(chunk.pt())) {
+                if(unflag(pte2phy((*_pd)[i])) == unflag(chunk.pt())) {
                     detach(i, chunk.pt(), chunk.pts());
                     return;
                 }
@@ -256,7 +256,7 @@ public:
 
         void detach(const Chunk & chunk, Log_Addr addr) {
             unsigned int from = pdi(addr);
-            if(ind(pte2phy((*_pd)[from])) != ind(chunk.pt())) {
+            if(unflag(pte2phy((*_pd)[from])) != unflag(chunk.pt())) {
                 db<MMU>(WRN) << "MMU::Directory::detach(pt=" << chunk.pt() << ",addr=" << addr << ") failed!" << endl;
                 return;
             }
@@ -374,7 +374,7 @@ public:
 
     static void free(Phy_Addr frame, int n = 1) {
         // Clean up MMU flags in frame address
-        frame = ind(frame);
+        frame = unflag(frame);
         Color color = colorful ? phy2color(frame) : WHITE;
 
         db<MMU>(TRC) << "MMU::free(frame=" << frame << ",color=" << color << ",n=" << n << ")" << endl;
@@ -388,7 +388,7 @@ public:
 
     static void white_free(Phy_Addr frame, int n) {
         // Clean up MMU flags in frame address
-        frame = ind(frame);
+        frame = unflag(frame);
 
         db<MMU>(TRC) << "MMU::free(frame=" << frame << ",color=" << WHITE << ",n=" << n << ")" << endl;
 

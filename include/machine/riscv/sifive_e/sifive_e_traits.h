@@ -17,6 +17,7 @@ protected:
 template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
 public:
+    // Value to be used for undefined addresses
     static const unsigned int NOT_USED          = 0xffffffff;
 
     // Physical Memory
@@ -39,8 +40,8 @@ public:
     static const unsigned int APP_CODE          = library ? ROM_BASE : APP_LOW;
     static const unsigned int APP_DATA          = library ? APP_LOW : APP_CODE + 4 * 1024 * 1024;
 
-    static const unsigned int INIT              = library ? NOT_USED :0x80080000;       // RAM_BASE + 512 KB (will be part of the free memory at INIT)
-    static const unsigned int PHY_MEM           = 0x20000000;                           // 512 MB (max 1536 MB of RAM)
+    static const unsigned int INIT              = library ? NOT_USED : 0x80080000;      // RAM_BASE + 512 KB (will be part of the free memory at INIT)
+    static const unsigned int PHY_MEM           = library ? RAM_BASE : 0x20000000;      // 512 MB (max 1536 MB of RAM)
     static const unsigned int IO                = 0x00000000;                           // 0 (max 512 MB of IO = MIO_TOP - MIO_BASE)
     static const unsigned int SYS               = 0xff800000;                           // 4 GB - 8 MB
 

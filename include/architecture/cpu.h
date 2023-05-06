@@ -32,7 +32,7 @@ public:
         template<typename T>
         Address(T * a) : _addr(Reg(a)) {}
 
-        constexpr operator const Reg &() const { return _addr; }
+        constexpr operator Reg() const { return _addr; }
 
         template<typename T>
         operator T *() const { return reinterpret_cast<T *>(_addr); }

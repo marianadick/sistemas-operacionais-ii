@@ -6,7 +6,7 @@
 
 __BEGIN_UTIL
 
-int ELF::load_segment(int i, Elf32_Addr addr)
+long ELF::load_segment(unsigned int i, Elf_Addr addr)
 {
     if((i > segments()) || (segment_type(i) != PT_LOAD))
         return 0;
@@ -18,6 +18,22 @@ int ELF::load_segment(int i, Elf32_Addr addr)
     memset(dst + seg(i)->p_filesz, 0, seg(i)->p_memsz - seg(i)->p_filesz);
 
     return seg(i)->p_memsz;
+}
+
+
+void ELF::load(Loadable * obj)
+{
+    for(unsigned int i = 0; i < segments(); i++) {
+        if((segment_size(i) == 0) || (segment_type(i) != PT_LOAD))
+            continue;
+
+        Elf_Addr addr = segment_address(i);
+        if(((addr >= obj->code) && (addr <= (obj->code + obj->code_size))) || // CODE
+           ((addr >= obj->data) && (addr <= (obj->data + obj->data_size))))   // DATA
+            load_segment(i);
+        else
+            db<ELF>(WRN) << "Skipping unknown ELF segment " << i << " at " << hex << addr << "!"<< endl;
+    }
 }
 
 __END_UTIL

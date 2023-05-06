@@ -11,6 +11,9 @@ class CPU: protected CPU_Common
 {
     friend class Init_System; // for CPU::init()
 
+private:
+    static const bool multitask = Traits<System>::multitask;
+
 public:
     // CPU Native Data Types
     using CPU_Common::Reg8;
@@ -212,11 +215,7 @@ public:
     static Reg fr() { Reg r; ASM("mv %0, a0" :  "=r"(r)); return r; }
     static void fr(Reg r) {  ASM("mv a0, %0" : : "r"(r) :); }
 
-    // New implemented functions (P2 related)
-    static Reg pdp() { return satp() << 12; }
-    static void pdp(Reg pdp) { satp((1UL << 63) | (pdp >> 12)); }
-
-    static unsigned int id() { return 0; }
+    static unsigned int id() { return multitask ? tp() : mhartid(); } // SiFive-U always has 2 cores, but core 0 does not feature an MMU, so we halt it and let core 1 run in a single-core configuration; id must be 1 for CLINT offsets and similar things.
     static unsigned int cores() { return 1; }
 
     using CPU_Common::clock;
@@ -224,9 +223,9 @@ public:
     using CPU_Common::max_clock;
     using CPU_Common::bus_clock;
 
-    static void int_enable()  { mint_enable(); }
-    static void int_disable() { mint_disable(); }
-    static bool int_enabled() { return (mstatus() & MIE); }
+    static void int_enable()  { multitask ? sint_enable()  : mint_enable(); }
+    static void int_disable() { multitask ? sint_disable() : mint_disable(); }
+    static bool int_enabled() { return multitask ? (sstatus() & SIE) : (mstatus() & MIE); }
     static bool int_disabled() { return !int_enabled(); }
 
     static void halt() { ASM("wfi"); }
@@ -333,8 +332,21 @@ public:
 
 public:
     // RISC-V 64 specifics
-    static Reg  status()   { return mstatus(); }
-    static void status(Status st) { mstatus(st); }
+    static Reg  status()   { return multitask ? sstatus()   : mstatus(); }
+    static void status(Status st) { multitask ? sstatus(st) : mstatus(st); }
+
+    static Reg  ie()     { return multitask ? sie()         : mie(); }
+    static void ie(Reg r)       { multitask ? sie(r)        : mie(r); }
+
+    static Reg  ip()     { return multitask ? sip()         : mip(); }
+    static void ip(Reg r)       { multitask ? sip(r)        : mip(r); }
+
+    static Reg  cause()  { return multitask ? scause()      : mcause(); }
+
+    static Reg  tval()   { return multitask ? stval()       : mtval(); }
+
+    static Reg  epc()    { return multitask ? sepc()        : mepc(); }
+    static void epc(Reg r)      { multitask ? sepc(r)       : mepc(r); }
 
     static Reg  tp() { Reg r; ASM("mv %0, x4" : "=r"(r) :); return r; }
     static void tp(Reg r) {   ASM("mv x4, %0" : : "r"(r) :); }
@@ -346,7 +358,7 @@ public:
     static void a1(Reg r) {   ASM("mv a1, %0" : : "r"(r) :); }
 
     static void ecall() { ASM("ecall"); }
-    static void iret() { mret(); }
+    static void iret() { multitask ? sret() : mret(); }
 
     // Machine mode
     static void mint_enable()  { ASM("csrsi mstatus, %0" : : "i"(MIE) : "cc"); }
@@ -383,6 +395,12 @@ public:
     static void mideleg(Reg r) { ASM("csrw mideleg, %0" : : "r"(r) : "cc"); }
     static void medeleg(Reg r) { ASM("csrw medeleg, %0" : : "r"(r) : "cc"); }
 
+    static void pmpcfg0(Reg r)   { ASM("csrw pmpcfg0,  %0" : : "r"(r) : "cc"); }
+    static Reg  pmpcfg0() { Reg r; ASM("csrr %0, pmpcfg0" :  "=r"(r) : : ); return r; }
+
+    static void pmpaddr0(Reg r)   { ASM("csrw pmpaddr0, %0" : : "r"(r) : "cc"); }
+    static Reg  pmpaddr0() { Reg r; ASM("csrr %0, pmpaddr0" :  "=r"(r) : : ); return r; }
+
     // Supervisor mode
     static void sint_enable()  { ASM("csrsi sstatus, %0" : : "i"(SIE) : "cc"); }
     static void sint_disable() { ASM("csrci sstatus, %0" : : "i"(SIE) : "cc"); }
@@ -416,15 +434,11 @@ public:
     static void satp(Reg r) { ASM("csrw satp, %0" : : "r"(r) : "cc"); }
     static Reg  satp() { Reg r; ASM("csrr %0, satp" :  "=r"(r) : : ); return r; }
 
-    // pmp registers
-    static void pmpcfg0(Reg r) { ASM("csrw pmpcfg0, %0" : : "r"(r) : "cc"); }
-    static void pmpaddr0(Reg r) { ASM("csrw pmpaddr0, %0" : : "r"(r) : "cc"); }
-
 private:
     template<typename Head, typename ... Tail>
     static void init_stack_helper(Log_Addr sp, Head head, Tail ... tail) {
         *static_cast<Head *>(sp) = head;
-        init_stack_helper(sp + sizeof(Head), tail ...);
+        init_stack_helper(sp + sizeof(Head *), tail ...);
     }
     static void init_stack_helper(Log_Addr sp) {}
 

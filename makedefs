@@ -87,7 +87,7 @@ BOOT_ROM	= -device loader,file=$(APPLICATION).img,addr=$(IMAGE_ADDR),force-raw=o
 endif
 
 # Boot Memory Map
-MEM_SIZE	= $(shell $(BIN)/eposcfg MEM_SIZE_KB 2> /dev/null)
+MEM_SIZE	= $(shell $(BIN)/eposcfg MEM_SIZE_MB 2> /dev/null)
 BOOT_ADDR	= $(shell $(BIN)/eposcfg BOOT 2> /dev/null)
 IMAGE_ADDR	= $(shell $(BIN)/eposcfg IMAGE 2> /dev/null)
 SETUP_ADDR	= $(shell $(BIN)/eposcfg SETUP 2> /dev/null)
@@ -100,19 +100,8 @@ UUID		= $(shell cat /proc/sys/kernel/random/uuid | sed 's/-//g')
 ia32_COMP_PREFIX	:= /usr/bin/x86_64-linux-gnu-
 armv7_COMP_PREFIX	:= /usr/bin/arm-none-eabi-
 armv8_COMP_PREFIX	:= /usr/bin/aarch64-linux-gnu-
-
-# TOOLCHAIN - PINI
-#rv32_COMP_PREFIX	:= /home/ubuntu/Desktop/SO2/riscv1804/riscv/bin/riscv64-unknown-linux-gnu-
-#rv64_COMP_PREFIX	:= /home/ubuntu/Desktop/SO2/riscv1804/riscv/bin/riscv64-unknown-linux-gnu-
-
-# TOOLCHAIN - LARISSA
-#rv32_COMP_PREFIX	:= 
-#rv64_COMP_PREFIX	:=
-
-# TOOLCHAIN - MARIANA
-#rv32_COMP_PREFIX	:= /home/mariana/Desenvolvimento/sistemas-operacionais-ii/riscv/bin/riscv64-unknown-linux-gnu-
-#rv64_COMP_PREFIX	:= /home/mariana/Desenvolvimento/sistemas-operacionais-ii/riscv/bin/riscv64-unknown-linux-gnu-
-
+rv32_COMP_PREFIX	:= /usr/local/rv32/bin/riscv32-unknown-linux-gnu-
+rv64_COMP_PREFIX	:= /usr/local/rv64/bin/riscv64-unknown-linux-gnu-
 COMP_PREFIX		= $($(ARCH)_COMP_PREFIX)
 
 # Architecture specifics
@@ -126,7 +115,7 @@ QEMU_DEBUG      = -D $(addsuffix .log,$(APPLICATION)) -d int,mmu
 pc_CC_FLAGS		= $(CC_M_FLAG) -Wa,--32
 pc_AS_FLAGS		:= --32
 pc_LD_FLAGS		:= -m elf_i386
-pc_EMULATOR		= qemu-system-i386 $(QEMU_DEBUG) -smp $(CPUS) -m $(MEM_SIZE)k -nographic -no-reboot -drive format=raw,index=0,if=floppy,read-only,file=
+pc_EMULATOR		= qemu-system-i386 $(QEMU_DEBUG) -smp $(CPUS) -m $(MEM_SIZE) -nographic -no-reboot -drive format=raw,index=0,if=floppy,read-only=on,file=
 pc_DEBUGGER		:= gdb
 pc_FLASHER		:=
 pc_MAGIC		:= --nmagic
@@ -138,7 +127,7 @@ ifeq ($(MMOD),realview_pbx)
 cortex_CC_FLAGS		:= -mcpu=cortex-a9
 cortex_AS_FLAGS		:= -mcpu=cortex-a9
 cortex_LD_FLAGS		:=
-cortex_EMULATOR		= qemu-system-arm $(QEMU_DEBUG) -machine realview-pbx-a9 -smp $(CPUS) -m $(MEM_SIZE)k -serial null -serial mon:stdio -nographic -no-reboot $(BOOT_ROM) -kernel 
+cortex_EMULATOR		= qemu-system-arm $(QEMU_DEBUG) -machine realview-pbx-a9 -smp $(CPUS) -m $(MEM_SIZE) -serial null -serial mon:stdio -nographic -no-reboot $(BOOT_ROM) -kernel 
 cortex_DEBUGGER		:= gdb
 cortex_FLASHER		= $(TLS)/eposflash/eposflash-$(MMOD) -d /dev/ttyACM0 -f
 cortex_MAGIC		:= --omagic
@@ -150,7 +139,7 @@ endif
 ifeq ($(MMOD),zynq)
 cortex_CC_FLAGS		:= -mcpu=cortex-a9
 cortex_AS_FLAGS		:= -mcpu=cortex-a9
-cortex_EMULATOR		= qemu-system-arm $(QEMU_DEBUG) -machine xilinx-zynq-a9 -smp $(CPUS) -m $(MEM_SIZE)k -serial null -serial mon:stdio -nographic -no-reboot $(BOOT_ROM) -kernel 
+cortex_EMULATOR		= qemu-system-arm $(QEMU_DEBUG) -machine xilinx-zynq-a9 -smp $(CPUS) -m $(MEM_SIZE) -serial null -serial mon:stdio -nographic -no-reboot $(BOOT_ROM) -kernel 
 cortex_DEBUGGER		:= gdb
 cortex_FLASHER		= $(TLS)/eposflash/eposflash-$(MMOD) -d /dev/ttyACM0 -f
 cortex_MAGIC		:= --omagic
@@ -178,7 +167,7 @@ cortex_IMG_SUFFIX	:= .bin
 endif
 
 ifeq ($(MMOD),lm3s811)
-cortex_EMULATOR		= qemu-system-arm $(QEMU_DEBUG) -machine lm3s811evb -m $(MEM_SIZE)k -serial mon:stdio -serial null -nographic -no-reboot -kernel 
+cortex_EMULATOR		= qemu-system-arm $(QEMU_DEBUG) -machine lm3s811evb -m $(MEM_SIZE) -serial mon:stdio -serial null -nographic -no-reboot -kernel 
 cortex_CC_FLAGS		:= -mcpu=cortex-m3 -mthumb -mabi=atpcs
 cortex_AS_FLAGS		:= -mcpu=cortex-m3 -mthumb -meabi=gnu
 cortex_LD_FLAGS		:=
@@ -207,7 +196,7 @@ ifeq ($(MMOD),sifive_e)
 riscv_CC_FLAGS		:= -march=rv32gc -mabi=ilp32f -Wl, -mno-relax
 riscv_AS_FLAGS		:= -march=rv32gc -mabi=ilp32f
 riscv_LD_FLAGS		:= -m elf32lriscv_ilp32f --no-relax
-riscv_EMULATOR		= qemu-system-riscv32 $(QEMU_DEBUG) -machine sifive_e -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
+riscv_EMULATOR		= qemu-system-riscv32 $(QEMU_DEBUG) -machine sifive_e -m $(MEM_SIZE) -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
 riscv_DEBUGGER		:= $(COMP_PREFIX)gdb
 riscv_FLASHER		:= 
 riscv_MAGIC		:= --nmagic
@@ -221,12 +210,12 @@ ifeq ($(ARCH),rv64)
 riscv_CC_FLAGS		:= -march=rv64gc -mabi=lp64d -Wl, -mno-relax -mcmodel=medany
 riscv_AS_FLAGS		:= -march=rv64gc -mabi=lp64d
 riscv_LD_FLAGS		:= -m elf64lriscv_lp64f --no-relax
-riscv_EMULATOR		= qemu-system-riscv64 $(QEMU_DEBUG) -machine sifive_u -smp 2 -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
+riscv_EMULATOR		= qemu-system-riscv64 $(QEMU_DEBUG) -machine sifive_u -smp 2 -m $(MEM_SIZE) -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
 else
 riscv_CC_FLAGS      := -march=rv32gc -mabi=ilp32d -Wl, -mno-relax
 riscv_AS_FLAGS      := -march=rv32gc -mabi=ilp32d
 riscv_LD_FLAGS      := -m elf32lriscv_ilp32f --no-relax
-riscv_EMULATOR		= qemu-system-riscv32 $(QEMU_DEBUG) -machine virt -cpu rv32 -smp $(CPUS) -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
+riscv_EMULATOR		= qemu-system-riscv32 $(QEMU_DEBUG) -machine virt -cpu rv32 -smp 2 -m $(MEM_SIZE) -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
 endif 
 riscv_DEBUGGER		:= $(COMP_PREFIX)gdb
 riscv_FLASHER		:= 
@@ -260,9 +249,9 @@ MACH_MAGIC		:= $($(MACH)_MAGIC)
 MACH_IMGSUFF		:= $($(MACH)_IMG_SUFFIX)
 
 ifeq ($(DEBUG),1)
-MACH_CC_FLAGS		:= -g -feliminate-unused-debug-symbols $(MACH_CC_FLAGS)
-MACH_CXX_FLAGS		:= -g -feliminate-unused-debug-symbols $(MACH_CXX_FLAGS)
-MACH_AS_FLAGS		:= -g $(MACH_AS_FLAGS)
+MACH_CC_FLAGS		:= -gdwarf-2 -feliminate-unused-debug-symbols $(MACH_CC_FLAGS)
+MACH_CXX_FLAGS		:= -gdwarf-2 -feliminate-unused-debug-symbols $(MACH_CXX_FLAGS)
+MACH_AS_FLAGS		:= -gdwarf-2 $(MACH_AS_FLAGS)
 MACH_EMULATOR		= $(subst -m ,-gdb tcp::1235 -S -m ,$($(MACH)_EMULATOR))
 endif
 
