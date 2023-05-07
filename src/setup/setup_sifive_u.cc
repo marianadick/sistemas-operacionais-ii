@@ -493,10 +493,13 @@ void Setup::setup_sys_pd()
     // Attach all the physical memory starting at RAM_BASE (used by SETUP itself, INIT and INT_M2S)
     // ATTENTION P3: This was commented so we can take a look at the sv39 memory map and thus needs to be fixed in the future
     // assert(MMU::pdi(SETUP) == MMU::pdi(RAM_BASE));
+    kout << "This is the MMU::pdi(SETUP): " << MMU::pdi(SETUP) << endl;
+    kout << "This is the MMU::pdi(RAM_BASE): " << MMU::pdi(RAM_BASE) << endl;
+    kout << "They should be equal." << endl;
     assert(MMU::pdi(INT_M2S) == MMU::pdi(RAM_TOP));
     if(RAM_BASE != PHY_MEM)
         dir.attach(mem, MMU::align_segment(RAM_BASE));
-
+    kout << "They should be equal." << endl;
     // Map I/O address space into the page tables pointed by io_pt
     Chunk io(si->pmm.io_pt, MMU::pti(si->bm.mio_base), MMU::pti(si->bm.mio_base) + MMU::pages(si->bm.mio_top - si->bm.mio_base), Flags::IO, si->bm.mio_base);
 
