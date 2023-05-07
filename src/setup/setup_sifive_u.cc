@@ -499,7 +499,6 @@ void Setup::setup_sys_pd()
     assert(MMU::pdi(INT_M2S) == MMU::pdi(RAM_TOP));
     if(RAM_BASE != PHY_MEM)
         dir.attach(mem, MMU::align_segment(RAM_BASE));
-    kout << "They should be equal." << endl;
     // Map I/O address space into the page tables pointed by io_pt
     Chunk io(si->pmm.io_pt, MMU::pti(si->bm.mio_base), MMU::pti(si->bm.mio_base) + MMU::pages(si->bm.mio_top - si->bm.mio_base), Flags::IO, si->bm.mio_base);
 
@@ -714,7 +713,9 @@ void _entry() // machine mode
         CPU::halt();
 
     CPU::mstatusc(CPU::MIE);                            // disable interrupts (they will be reenabled at Init_End)
-    CPU::mies(CPU::MSI | CPU::MTI | CPU::MEI);          // enable interrupts generation by CLINT at machine level
+
+    // ATTENTION P3: we had to disable timer interruptions for now
+    CPU::mies(CPU::MSI | CPU::MEI);          // enable interrupts generation by CLINT at machine level
 
     CPU::tp(CPU::mhartid());                            // tp will be CPU::id() for supervisor mode
     CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE - sizeof(long)); // set the stack pointer, thus creating a stack for SETUP
@@ -722,7 +723,8 @@ void _entry() // machine mode
     Machine::clear_bss();
 
     if(Traits<System>::multitask) {
-        CLINT::mtvec(CLINT::DIRECT, Memory_Map::INT_M2S); // setup a machine mode interrupt handler to forward timer interrupts (which cannot be delegated via mideleg)
+        // ATTENTION P3: I believe we don't need this since there's no timer interruption to be forwarded anymore
+        // CLINT::mtvec(CLINT::DIRECT, Memory_Map::INT_M2S); // setup a machine mode interrupt handler to forward timer interrupts (which cannot be delegated via mideleg)
         CPU::mideleg(0xffff);                           // delegate all possible interrupts to supervisor mode (MTI can't be delegated https://groups.google.com/a/groups.riscv.org/g/sw-dev/c/A5XmyE5FE_0/m/TEnvZ0g4BgAJ)
         CPU::medeleg(0xffff);                           // delegate all exceptions to supervisor mode
         CPU::mstatuss(CPU::MPP_S);                      // prepare jump into supervisor mode at mret
