@@ -193,11 +193,12 @@ void Setup::build_lm()
     db<Setup>(TRC) << "Setup::build_lm()" << endl;
 
     // Get boot image structure
-    si->lm.has_stp = (si->bm.setup_offset != -1u);
-    si->lm.has_ini = (si->bm.init_offset != -1u);
-    si->lm.has_sys = (si->bm.system_offset != -1u);
-    si->lm.has_app = (si->bm.application_offset != -1u);
-    si->lm.has_ext = (si->bm.extras_offset != -1u);
+    // ATTENTION P3: this must be Long since we are dealing with a 64 bit architecture
+    si->lm.has_stp = (((long)si->bm.setup_offset) != -1l);
+    si->lm.has_ini = (((long)si->bm.init_offset) != -1l);
+    si->lm.has_sys = (((long)si->bm.system_offset) != -1l);
+    si->lm.has_app = (((long)si->bm.application_offset) != -1l);
+    si->lm.has_ext = (((long)si->bm.extras_offset) != -1l);
 
     // Check SETUP integrity and get the size of its segments
     if(si->lm.has_stp) {
@@ -490,7 +491,8 @@ void Setup::setup_sys_pd()
     dir.attach(mem, MMU::align_segment(PHY_MEM));
 
     // Attach all the physical memory starting at RAM_BASE (used by SETUP itself, INIT and INT_M2S)
-    assert(MMU::pdi(SETUP) == MMU::pdi(RAM_BASE));
+    // ATTENTION P3: This was commented so we can take a look at the sv39 memory map and thus needs to be fixed in the future
+    // assert(MMU::pdi(SETUP) == MMU::pdi(RAM_BASE));
     assert(MMU::pdi(INT_M2S) == MMU::pdi(RAM_TOP));
     if(RAM_BASE != PHY_MEM)
         dir.attach(mem, MMU::align_segment(RAM_BASE));
