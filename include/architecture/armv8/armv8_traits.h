@@ -17,6 +17,7 @@ template<> struct Traits<CPU>: public Traits<Build>
 
 template<> struct Traits<MMU>: public Traits<Build>
 {
+    static const bool signed_logical_address = false;
     static const bool colorful = false;
     static const unsigned int COLORS = 1;
 };

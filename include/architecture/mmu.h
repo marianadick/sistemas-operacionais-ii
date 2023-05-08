@@ -30,6 +30,7 @@ public:
     static const unsigned long PT_SHIFT = OFFSET_BITS;
     static const unsigned long AT_SHIFT = OFFSET_BITS + PT_BITS;
     static const unsigned long PD_SHIFT = OFFSET_BITS + PT_BITS + AT_BITS;
+    static const unsigned long SIGNAL_MASK = Traits<MMU>::signed_logical_address ? ((1UL << LA_BITS) - 1) : 0;
 
     static const unsigned long PG_SIZE = 1UL << OFFSET_BITS;
     static const unsigned long PT_SPAN = 1UL << (OFFSET_BITS + PT_BITS);
@@ -79,7 +80,7 @@ public:
 
         operator unsigned int() const { return _flags; }
 
-        friend Debug & operator<<(Debug & db, Flags f) { db << hex << f._flags << dec; return db; }
+        friend OStream & operator<<(OStream & os, Flags f) { os << hex << f._flags << dec; return os; }
 
     private:
         unsigned int _flags;
@@ -96,13 +97,14 @@ public:
     constexpr static unsigned long pages(unsigned long bytes) { return (bytes + sizeof(Page) - 1) / sizeof(Page); }
 
     // Functions to handle physical addresses
-    constexpr static Phy_Addr unflag(Phy_Addr addr) { return addr & ~(sizeof(Page) - 1); }
+    constexpr static Phy_Addr unflag(Log_Addr addr) { return addr & ~(SIGNAL_MASK | (sizeof(Page) - 1)); }
 
     // Functions to handle logical addresses
     constexpr static unsigned long off(Log_Addr addr) { return addr & (sizeof(Page) - 1); }
     constexpr static unsigned long pti(Log_Addr addr) { return (addr >> PT_SHIFT) & (PT_ENTRIES - 1); }
     constexpr static unsigned long pti(Log_Addr base, Log_Addr addr) { return (addr - base) >> PT_SHIFT; } // can be larger than PT_ENTRIES, used mainly by chunks
     constexpr static unsigned long ati(Log_Addr addr) { return (addr >> AT_SHIFT) & (AT_ENTRIES - 1); }
+    constexpr static unsigned long ati(Log_Addr base, Log_Addr addr) { return (addr - base) >> AT_SHIFT; } // can be larger than AT_ENTRIES, used mainly by chunks
     constexpr static unsigned long pdi(Log_Addr addr) { return (addr >> PD_SHIFT) & (PD_ENTRIES - 1); }
 
     constexpr static Log_Addr align_page(Log_Addr addr) { return (addr + sizeof(Page) - 1) & ~(sizeof(Page) - 1); }
