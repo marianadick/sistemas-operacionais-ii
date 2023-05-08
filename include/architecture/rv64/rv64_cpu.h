@@ -203,17 +203,17 @@ public:
 
     static Log_Addr pc() { Reg r; ASM("auipc %0, 0" : "=r"(r) :); return r; }
 
-    static Reg sp() { Reg r; ASM("mv %0, sp" :  "=r"(r) :); return r; }
-    static void sp(Reg r) {  ASM("mv sp, %0" : : "r"(r) :); }
+    static Log_Addr sp() { Reg r; ASM("mv %0, sp" :  "=r"(r) :); return r; }
+    static void sp(Reg r) {       ASM("mv sp, %0" : : "r"(r) :); }
 
-    static Reg fp() { Reg r; ASM("mv %0, fp" :  "=r"(r) :); return r; }
-    static void fp(Reg r) {  ASM("mv fp, %0" : : "r"(r) :); }
+    static Log_Addr fp() { Reg r; ASM("mv %0, fp" :  "=r"(r) :); return r; }
+    static void fp(Reg r) {       ASM("mv fp, %0" : : "r"(r) :); }
 
-    static Reg ra() { Reg r; ASM("mv %0, ra" :  "=r"(r)); return r; }
-    static void ra(Reg r) {  ASM("mv ra, %0" : : "r"(r) :); }
+    static Log_Addr ra() { Reg r; ASM("mv %0, ra" :  "=r"(r)); return r; }
+    static void ra(Reg r) {       ASM("mv ra, %0" : : "r"(r) :); }
 
-    static Reg fr() { Reg r; ASM("mv %0, a0" :  "=r"(r)); return r; }
-    static void fr(Reg r) {  ASM("mv a0, %0" : : "r"(r) :); }
+    static Log_Addr fr() { Reg r; ASM("mv %0, a0" :  "=r"(r)); return r; }
+    static void fr(Reg r) {       ASM("mv a0, %0" : : "r"(r) :); }
 
     static unsigned int id() { return multitask ? tp() : mhartid(); } // SiFive-U always has 2 cores, but core 0 does not feature an MMU, so we halt it and let core 1 run in a single-core configuration; id must be 1 for CLINT offsets and similar things.
     static unsigned int cores() { return 1; }

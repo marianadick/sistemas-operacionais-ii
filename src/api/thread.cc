@@ -364,6 +364,9 @@ int Thread::idle()
 
         CPU::int_enable();
         CPU::halt();
+
+        if(!preemptive)
+            yield();
     }
 
     CPU::int_disable();

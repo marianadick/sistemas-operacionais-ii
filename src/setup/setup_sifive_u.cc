@@ -118,7 +118,7 @@ Setup::Setup()
     if(si->bm.n_cpus > Traits<Machine>::CPUS)
         si->bm.n_cpus = Traits<Machine>::CPUS;
 
-    db<Setup>(TRC) << "Setup(bi=" << reinterpret_cast<void *>(bi) << ",sp=" << reinterpret_cast<void *>(CPU::sp()) << ")" << endl;
+    db<Setup>(TRC) << "Setup(bi=" << reinterpret_cast<void *>(bi) << ",sp=" << CPU::sp() << ")" << endl;
     db<Setup>(INF) << "Setup:si=" << *si << endl;
 
     if(multitask) {
@@ -478,46 +478,66 @@ void Setup::setup_sys_pd()
                    << ",fr2t="  << reinterpret_cast<void *>(si->pmm.free2_top)
                    << "})" << endl;
 
-    // Get the physical address for the System Page Directory, which was allocated with calloc()
-    PT_Entry * sys_pd = reinterpret_cast<PT_Entry *>(si->pmm.sys_pd);
+    // Check alignments
+    assert(MMU::pdi(SETUP) == MMU::pdi(RAM_BASE));
+    assert(MMU::pdi(INT_M2S) == MMU::pdi(RAM_TOP));
+    if(RAM_BASE != MMU::align_segment(RAM_BASE))
+        db<Setup>(WRN) << "Setup::setup_sys_pd: unaligned physical memory!" << endl;
+    if(PHY_MEM != MMU::align_segment(PHY_MEM))
+        db<Setup>(WRN) << "Setup::setup_sys_pd: unaligned physical memory mapping!" << endl;
+    if(IO != MMU::align_segment(IO))
+        db<Setup>(WRN) << "Setup::setup_sys_pd: unaligned memory-mapped I/O mapping!" << endl;
+    if(SYS != MMU::align_segment(SYS))
+        db<Setup>(WRN) << "Setup::setup_sys_pd: unaligned OS mapping!" << endl;
 
+    // Get the physical address for the System Page Directory, which was allocated with calloc()
     Directory dir(reinterpret_cast<Page_Directory *>(si->pmm.sys_pd));
 
     // Map the whole physical memory into the page tables pointed by phy_mem_pt
-    Chunk mem(si->pmm.phy_mem_pt, MMU::pti(si->bm.mem_base), MMU::pti(si->bm.mem_base) + MMU::pages(si->bm.mem_top - si->bm.mem_base), Flags::SYS, si->bm.mem_base);
+    Page_Table * mem_pt = reinterpret_cast<Page_Table *>(si->pmm.phy_mem_pt);
+    Chunk mem(mem_pt, MMU::pti(si->bm.mem_base), MMU::pti(si->bm.mem_base) + MMU::pages(si->bm.mem_top - si->bm.mem_base), Flags::SYS, si->bm.mem_base);
 
     // Attach all the physical memory starting at PHY_MEM
-    dir.attach(mem, MMU::align_segment(PHY_MEM));
+    if(dir.attach(mem, PHY_MEM) != PHY_MEM)
+        db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach physical memory at " << reinterpret_cast<void *>(PHY_MEM) << "!" << endl;
 
-    // Attach all the physical memory starting at RAM_BASE (used by SETUP itself, INIT and INT_M2S)
-    assert(MMU::pdi(SETUP) == MMU::pdi(RAM_BASE));
-    assert(MMU::pdi(INT_M2S) == MMU::pdi(RAM_TOP));
-    if(RAM_BASE != PHY_MEM)
-        dir.attach(mem, MMU::align_segment(RAM_BASE));
+    // Also attach the portions of the physical memory used by SETUP itself and by INIT
+    if(PHY_MEM != RAM_BASE) {
+        Chunk base(&mem_pt[MMU::ati(RAM_BASE)], MMU::pti(RAM_BASE, APP_LOW), MMU::pti(RAM_BASE, APP_LOW) + MMU::pages(APP_LOW - RAM_BASE), Flags::SYS);
+        Chunk top(&mem_pt[MMU::ati(RAM_TOP)], 0, MMU::PT_ENTRIES, Flags::SYS);
+        if(dir.attach(base, RAM_BASE) != RAM_BASE)
+            db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach SETUP+INIT physical memory at " << reinterpret_cast<void *>(RAM_BASE) << "!" << endl;
+        if(dir.attach(top, MMU::align_segment(RAM_TOP) - sizeof(MMU::Big_Page)) != MMU::align_segment(RAM_TOP) - sizeof(MMU::Big_Page))
+            db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach SETUP+INIT physical memory at " << static_cast<void *>(MMU::align_segment(RAM_TOP) - sizeof(MMU::Big_Page)) << "!" << endl;
+    }
 
     // Map I/O address space into the page tables pointed by io_pt
     Chunk io(si->pmm.io_pt, MMU::pti(si->bm.mio_base), MMU::pti(si->bm.mio_base) + MMU::pages(si->bm.mio_top - si->bm.mio_base), Flags::IO, si->bm.mio_base);
 
     // Attach devices' memory at Memory_Map::IO
-    dir.attach(io, MMU::align_segment(IO));
+    if(dir.attach(io, IO) != IO)
+        db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach memory-mapped I/O at " << reinterpret_cast<void *>(IO) << "!" << endl;
 
     // Attach the OS (i.e. sys_pt)
-    Chunk os(si->pmm.sys_pt, MMU::align_segment(SYS), MMU::align_segment(SYS) + MMU::pages(SYS_HIGH - SYS), Flags::SYS);
-    dir.attach(os, MMU::align_segment(SYS));
+    Chunk os(si->pmm.sys_pt, MMU::pti(SYS), MMU::pti(SYS) + MMU::pages(SYS_HEAP - SYS), Flags::SYS);
+    if(dir.attach(os, SYS) != SYS)
+        db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach the OS at " << reinterpret_cast<void *>(SYS) << "!" << endl;
 
     // Attach the first APPLICATION CODE (i.e. app_code_pt)
-    Chunk app_code(si->pmm.app_code_pt, MMU::align_segment(si->lm.app_code), MMU::align_segment(si->lm.app_code) + MMU::pages(si->lm.app_code_size), Flags::APPC);
-    dir.attach(app_code, MMU::align_segment(si->lm.app_code));
+    Chunk app_code(si->pmm.app_code_pt, MMU::pti(si->lm.app_code), MMU::pti(si->lm.app_code) + MMU::pages(si->lm.app_code_size), Flags::APPC);
+    if(dir.attach(app_code, si->lm.app_code) != si->lm.app_code)
+        db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach the application code at " << reinterpret_cast<void *>(si->lm.app_code) << "!" << endl;
 
     // Attach the first APPLICATION DATA (i.e. app_data_pt, containing heap, stack and extra)
-    Chunk app_data(si->pmm.app_data_pt, MMU::align_segment(si->lm.app_data), MMU::align_segment(si->lm.app_data) + MMU::pages(si->lm.app_data_size), Flags::APPC);
-    dir.attach(app_data, MMU::align_segment(si->lm.app_data));
+    Chunk app_data(si->pmm.app_data_pt, MMU::pti(si->lm.app_data), MMU::pti(si->lm.app_data) + MMU::pages(si->lm.app_data_size), Flags::APPD);
+    if(dir.attach(app_data, si->lm.app_data) != si->lm.app_data)
+        db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach the application data at " << reinterpret_cast<void *>(si->lm.app_data) << "!" << endl;
 
     // Save free chunks to be passed to MMU::init()
     si->pmm.free1_base = si->bm.mem_base;
     si->pmm.free1_top = si->bm.mem_base + MMU::allocable() * sizeof(Page);
 
-    db<Setup>(INF) << "SYS_PD[" << sys_pd << "]=" << *reinterpret_cast<Page_Directory *>(sys_pd) << endl;
+    db<Setup>(INF) << "SYS_PD[" << reinterpret_cast<Page_Directory *>(si->pmm.sys_pd) << "]=" << *reinterpret_cast<Page_Directory *>(si->pmm.sys_pd) << endl;
 }
 
 
@@ -555,7 +575,7 @@ void Setup::load_parts()
     db<Setup>(TRC) << "Setup::load_parts()" << endl;
 
     // Adjust bi to its logical address
-    bi = static_cast<char *>(MMU::phy2log(bi));
+    bi = static_cast<char *>((RAM_BASE == PHY_MEM) ? bi : (RAM_BASE > PHY_MEM) ? bi - (RAM_BASE - PHY_MEM) : bi + (PHY_MEM - RAM_BASE));
 
     // Relocate System_Info
     if(sizeof(System_Info) > sizeof(Page))

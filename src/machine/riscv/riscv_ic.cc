@@ -125,7 +125,7 @@ __END_SYS
 
 static void print_context() {
     __USING_SYS
-    db<IC, System>(TRC) << "IC::leave:ctx=" << *reinterpret_cast<CPU::Context *>(CPU::sp() + 32) << endl;
+    db<IC, System>(TRC) << "IC::leave:ctx=" << *static_cast<CPU::Context *>(CPU::sp() + 32) << endl;
     CPU::fr(0);
 }
 

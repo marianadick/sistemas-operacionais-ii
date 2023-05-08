@@ -254,7 +254,7 @@ public:
         void activate() const { SV39_MMU::pd(_pd); }
 
         Log_Addr attach(const Chunk & chunk) {
-            for(Log_Addr addr = APP_LOW; addr < APP_HIGH; addr += AT_SPAN) {
+            for(Log_Addr addr = APP_LOW; addr < APP_HIGH; addr += sizeof(Big_Page)) {
                 if(attachable(addr, chunk.pt(), chunk.pts(), chunk.flags())) {
                     attach(addr, chunk.pt(), chunk.pts(), chunk.flags());
                     return addr;
@@ -325,12 +325,12 @@ public:
 
     private:
         bool attachable(Log_Addr addr, const Page_Table * pt, unsigned int pts, Page_Flags flags) {
-            for(unsigned int i = ati(addr); i < ati(addr) + ats(pts); i++) {
+            for(unsigned int i = pdi(addr); i < pdi(addr) + ats(pts); i++) {
                 Attacher * at = pde2phy(_pd->log()[i]);
                 if(!at)
                     continue;
                 else
-                    for(unsigned int j = pti(addr); j < pti(addr) + pts; j++, pt++)
+                    for(unsigned int j = ati(addr); j < ati(addr) + pts; j++, pt++)
                         if(at->log()[j & (AT_ENTRIES - 1)])
                             return false;
             }
@@ -344,7 +344,7 @@ public:
                     at = calloc(1, WHITE);
                     _pd->log()[i] = phy2pde(Phy_Addr(at));
                 }
-                for(unsigned int j = ati(addr); j <= ati(addr) + pts; j++, pt++)
+                for(unsigned int j = ati(addr); j < ati(addr) + pts; j++, pt++)
                     at->log()[j & (AT_ENTRIES - 1)] = phy2ate(Phy_Addr(pt));
             }
             return true;
@@ -485,13 +485,13 @@ public:
     static Phy_Addr   pde2phy(PD_Entry entry) { return (entry & ~Page_Flags::MASK) << 2; }
     static Page_Flags pde2flg(PT_Entry entry) { return (entry & Page_Flags::MASK); }
 
-#ifndef __setup__
-    static Log_Addr phy2log(Phy_Addr phy) { return Log_Addr((RAM_BASE == PHY_MEM) ? phy : (RAM_BASE > PHY_MEM) ? phy - (RAM_BASE - PHY_MEM) : phy + (PHY_MEM - RAM_BASE)); }
-    static Phy_Addr log2phy(Log_Addr log) { return Phy_Addr((RAM_BASE == PHY_MEM) ? log : (RAM_BASE > PHY_MEM) ? log + (RAM_BASE - PHY_MEM) : log - (PHY_MEM - RAM_BASE)); }
-#else
+#ifdef __setup__
     // SETUP uses the MMU to build a primordial memory model before turning the MMU on, so no log vs phy adjustments are made
     static Log_Addr phy2log(Phy_Addr phy) { return Log_Addr((RAM_BASE == PHY_MEM) ? phy : (RAM_BASE > PHY_MEM) ? phy : phy ); }
     static Phy_Addr log2phy(Log_Addr log) { return Phy_Addr((RAM_BASE == PHY_MEM) ? log : (RAM_BASE > PHY_MEM) ? log : log ); }
+#else
+    static Log_Addr phy2log(Phy_Addr phy) { return Log_Addr((RAM_BASE == PHY_MEM) ? phy : (RAM_BASE > PHY_MEM) ? phy - (RAM_BASE - PHY_MEM) : phy + (PHY_MEM - RAM_BASE)); }
+    static Phy_Addr log2phy(Log_Addr log) { return Phy_Addr((RAM_BASE == PHY_MEM) ? log : (RAM_BASE > PHY_MEM) ? log + (RAM_BASE - PHY_MEM) : log - (PHY_MEM - RAM_BASE)); }
 #endif
 
     static Color phy2color(Phy_Addr phy) { return static_cast<Color>(colorful ? ((phy >> PT_SHIFT) & 0x7f) % COLORS : WHITE); } // TODO: what is 0x7f
