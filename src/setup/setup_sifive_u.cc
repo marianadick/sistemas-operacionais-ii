@@ -442,7 +442,7 @@ void Setup::setup_app_pt()
     // APPLICATION code
     // Since load_parts() will load the code into memory, the code segment can't be marked R/O yet
     // The correct flags (APPC and APPD) will be configured after the execution of load_parts(), by adjust_perms()
-    app_code_pt->remap(si->pmm.app_code, MMU::pti(si->lm.app_code), MMU::pti(si->lm.app_code) + MMU::pages(si->lm.app_code_size), Flags::APP);
+    app_code_pt->remap(si->pmm.app_code, MMU::pti(si->lm.app_code), MMU::pti(si->lm.app_code) + MMU::pages(si->lm.app_code_size), Flags::SYS);
 
     // APPLICATION data (contains stack, heap and extra)
     app_data_pt->remap(si->pmm.app_data, MMU::pti(si->lm.app_data), MMU::pti(si->lm.app_data) + MMU::pages(si->lm.app_data_size), Flags::APP);
