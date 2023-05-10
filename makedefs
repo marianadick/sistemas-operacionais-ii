@@ -81,7 +81,6 @@ LSYS		= $(LSYSNAME)_$(MMOD)
 LINIT		= $(LINITNAME)_$(MMOD)
 LUTIL		= $(LUTILNAME)_$(MMOD)
 
-# ATTENTION P3: this was changed - not sure why we didn't need to boot load before
 BOOT_ROM	= -device loader,file=$(APPLICATION).img,addr=$(IMAGE_ADDR),force-raw=on 
 
 

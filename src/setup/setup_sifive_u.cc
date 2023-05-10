@@ -140,7 +140,7 @@ Setup::Setup()
         setup_sys_pd();
 
         // Relocate the machine to supervisor interrupt forwarder
-        //setup_m2s();
+        // setup_m2s();
 
         // Enable paging
         enable_paging();
@@ -194,11 +194,19 @@ void Setup::build_lm()
 
     // Get boot image structure
     // ATTENTION P3: this must be Long since we are dealing with a 64 bit architecture
-    si->lm.has_stp = ((si->bm.setup_offset) != -1ul);
-    si->lm.has_ini = ((si->bm.init_offset) != -1ul);
-    si->lm.has_sys = ((si->bm.system_offset) != -1ul);
-    si->lm.has_app = ((si->bm.application_offset) != -1ul);
-    si->lm.has_ext = ((si->bm.extras_offset) != -1ul);
+    if (multitask) {
+        si->lm.has_stp = ((si->bm.setup_offset) != -1ul);
+        si->lm.has_ini = ((si->bm.init_offset) != -1ul);
+        si->lm.has_sys = ((si->bm.system_offset) != -1ul);
+        si->lm.has_app = ((si->bm.application_offset) != -1ul);
+        si->lm.has_ext = ((si->bm.extras_offset) != -1ul);
+    } else {
+        si->lm.has_stp = ((si->bm.setup_offset) != -1u);
+        si->lm.has_ini = ((si->bm.init_offset) != -1u);
+        si->lm.has_sys = ((si->bm.system_offset) != -1u);
+        si->lm.has_app = ((si->bm.application_offset) != -1u);
+        si->lm.has_ext = ((si->bm.extras_offset) != -1u);
+    }
 
     // Check SETUP integrity and get the size of its segments
     if(si->lm.has_stp) {
@@ -255,6 +263,7 @@ void Setup::build_lm()
         }
         if(Traits<System>::multiheap) { // Application heap in data segment
             si->lm.app_data_size = MMU::align_page(si->lm.app_data_size);
+            kout << "teste" << si->lm.app_data_size << endl;
             si->lm.app_stack = si->lm.app_data + si->lm.app_data_size;
             si->lm.app_data_size += MMU::align_page(Traits<Application>::STACK_SIZE);
             si->lm.app_heap = si->lm.app_data + si->lm.app_data_size;
@@ -412,12 +421,19 @@ void Setup::setup_sys_pt()
     // System Page Directory
     sys_pt->remap(si->pmm.sys_pd, MMU::pti(SYS, SYS_PD), MMU::pti(SYS, SYS_PD) + 1, Flags::SYS);
 
+    if(multitask) {
     // SYSTEM code
-    sys_pt->remap(si->pmm.sys_code, MMU::pti(SYS, SYS_CODE), MMU::pti(SYS, SYS_CODE) + MMU::pages(si->lm.sys_code_size), Flags::SYS);
+        sys_pt->remap(si->pmm.sys_code, MMU::pti(SYS, SYS_CODE), MMU::pti(SYS, SYS_CODE) + MMU::pages(si->lm.sys_code_size), Flags::SYS);
 
-    // SYSTEM data
-    sys_pt->remap(si->pmm.sys_data, MMU::pti(SYS, SYS_DATA), MMU::pti(SYS, SYS_DATA) + MMU::pages(si->lm.sys_data_size), Flags::SYS);
+        // SYSTEM data
+        sys_pt->remap(si->pmm.sys_data, MMU::pti(SYS, SYS_DATA), MMU::pti(SYS, SYS_DATA) + MMU::pages(si->lm.sys_data_size), Flags::SYS);
+    } else {
+        // SYSTEM code
+        sys_pt->remap(si->pmm.sys_code, MMU::pti(SYS, SYS_CODE), MMU::pti(SYS, SYS_CODE) + MMU::pages(si->lm.sys_code_size), Flags::APP);
 
+        // SYSTEM data
+        sys_pt->remap(si->pmm.sys_data, MMU::pti(SYS, SYS_DATA), MMU::pti(SYS, SYS_DATA) + MMU::pages(si->lm.sys_data_size), Flags::APP);
+    }
     // SYSTEM stack (used only during init and for the ukernel model)
     sys_pt->remap(si->pmm.sys_stack, MMU::pti(SYS, SYS_STACK), MMU::pti(SYS, SYS_STACK) + MMU::pages(si->lm.sys_stack_size), Flags::SYS);
 

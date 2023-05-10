@@ -7,11 +7,13 @@
 
 __BEGIN_SYS
 
+
 class Machine_Common;
 template<> struct Traits<Machine_Common>: public Traits<Build>
 {
 protected:
-    static const bool library = (Traits<Build>::MODE == Traits<Build>::LIBRARY);
+    // This can be set to false in order to run flat maping
+    static const bool multitask = true;
 };
 
 template<> struct Traits<Machine>: public Traits<Machine_Common>
@@ -34,18 +36,18 @@ public:
 
     // Physical Memory at Boot
     static const unsigned int BOOT              = NOT_USED;
-    static const unsigned int SETUP             = RAM_BASE;        // RAM_BASE (will be part of the free memory at INIT, using a logical address identical to physical eliminate SETUP relocation)
+    static const unsigned int SETUP             = multitask ? RAM_BASE : NOT_USED;        // RAM_BASE (will be part of the free memory at INIT, using a logical address identical to physical eliminate SETUP relocation)
     static const unsigned int IMAGE             = 0x80100000;                           // RAM_BASE + 1 MB (will be part of the free memory at INIT, defines the maximum image size; if larger than 3 MB then adjust at SETUP)
 
     // Logical Memory
-    static const unsigned int APP_LOW           = 0x80400000;      // 2 GB + 4 MB
+    static const unsigned int APP_LOW           = multitask ? 0x80400000 : RAM_BASE;      // 2 GB + 4 MB
     static const unsigned int APP_HIGH          = 0xff7fffff;                           // SYS - 1
 
     static const unsigned int APP_CODE          = APP_LOW;
     static const unsigned int APP_DATA          = APP_CODE + 4 * 1024 * 1024;
 
-    static const unsigned int INIT              = 0x80080000;      // RAM_BASE + 512 KB (will be part of the free memory at INIT)
-    static const unsigned int PHY_MEM           = 0x20000000;      // 512 MB (max 1536 MB of RAM)
+    static const unsigned int INIT              = NOT_USED;      // RAM_BASE + 512 KB (will be part of the free memory at INIT)
+    static const unsigned int PHY_MEM           = multitask ? 0x20000000 : RAM_BASE;      // 512 MB (max 1536 MB of RAM)
     static const unsigned int IO                = 0x00000000;                           // 0 (max 512 MB of IO = MIO_TOP - MIO_BASE)
     static const unsigned int SYS               = 0xff800000;                           // 4 GB - 8 MB
 
