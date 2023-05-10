@@ -140,7 +140,7 @@ Setup::Setup()
         setup_sys_pd();
 
         // Relocate the machine to supervisor interrupt forwarder
-        setup_m2s();
+        //setup_m2s();
 
         // Enable paging
         enable_paging();
@@ -194,11 +194,11 @@ void Setup::build_lm()
 
     // Get boot image structure
     // ATTENTION P3: this must be Long since we are dealing with a 64 bit architecture
-    si->lm.has_stp = (((long)si->bm.setup_offset) != -1l);
-    si->lm.has_ini = (((long)si->bm.init_offset) != -1l);
-    si->lm.has_sys = (((long)si->bm.system_offset) != -1l);
-    si->lm.has_app = (((long)si->bm.application_offset) != -1l);
-    si->lm.has_ext = (((long)si->bm.extras_offset) != -1l);
+    si->lm.has_stp = ((si->bm.setup_offset) != -1ul);
+    si->lm.has_ini = ((si->bm.init_offset) != -1ul);
+    si->lm.has_sys = ((si->bm.system_offset) != -1ul);
+    si->lm.has_app = ((si->bm.application_offset) != -1ul);
+    si->lm.has_ext = ((si->bm.extras_offset) != -1ul);
 
     // Check SETUP integrity and get the size of its segments
     if(si->lm.has_stp) {

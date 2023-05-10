@@ -454,13 +454,23 @@ inline void CPU::Context::push(bool interrupt)
     ASM("       addi     sp, sp, %0             \n" : : "i"(-sizeof(Context))); // adjust SP for the pushes below
 
 if(interrupt) {
-    ASM("       csrr     x3,    sepc            \n"
+    if(multitask) {
+        ASM("       csrr     x3,    sepc            \n"
         "       sd       x3,    0(sp)           \n");   // push SEPC as PC on interrupts -- ATTENTION P3: machine -> supervisor
+    } else {
+        ASM("       csrr     x3,    mepc            \n"
+        "       sd       x3,    0(sp)           \n");   // push MEPC as PC on interrupts
+    }
+
+
 } else {
     ASM("       sw       x1,    0(sp)           \n");   // push RA as PC on context switches
 }
-
-    ASM("       csrr     x3,  sstatus           \n"); // ATTENTION P3: machine -> supervisor
+    if(multitask) {
+        ASM("       csrr     x3,  sstatus           \n"); // ATTENTION P3: machine -> supervisor
+    } else {
+        ASM("       csrr     x3,  mstatus           \n");
+    }
 
     ASM("       sd       x3,    8(sp)           \n"     // push ST
         "       sd       x1,   16(sp)           \n"     // push RA
@@ -499,7 +509,11 @@ inline void CPU::Context::pop(bool interrupt)
 if(interrupt) {
     ASM("       add      x3, x3, a0             \n");   // a0 is set by exception handlers to adjust [M|S]EPC to point to the next instruction if needed
 }
-    ASM("       csrw     sepc, x3               \n");   // MEPC = PC - ATTENTION P3: machine -> supervisor
+    if(multitask) {
+        ASM("       csrw     sepc, x3               \n");   // MEPC = PC - ATTENTION P3: machine -> supervisor
+    } else {
+        ASM("       csrw     mepc, x3               \n");
+    }
 
     ASM("       ld       x3,    8(sp)           \n");   // pop ST into TMP
 if(!interrupt) {
@@ -537,7 +551,11 @@ if(!interrupt) {
         "       ld      x31,  232(sp)           \n"
         "       addi    sp, sp, %0              \n" : : "i"(sizeof(Context))); // complete the pops above by adjusting SP
 
-    ASM("       csrw    sstatus, x3             \n");   // SSTATUS = ST -- ATTENTION P3: machine -> supervisor
+    if(multitask) {
+        ASM("       csrw    sstatus, x3             \n");   // SSTATUS = ST -- ATTENTION P3: machine -> supervisor
+    } else {
+        ASM("       csrw    mstatus, x3             \n");
+    }
 }
 
 inline CPU::Reg64 htole64(CPU::Reg64 v) { return CPU::htole64(v); }

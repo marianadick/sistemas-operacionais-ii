@@ -19,7 +19,8 @@ int main()
     size_t * a = reinterpret_cast<size_t *>(MMU::current());
 
     for(int i = 0; i < 8; i++)
-    cout << "PD[" << i << "] = " << hex << a[i] << endl;
+        cout << "PD[" << i << "] = " << hex << a[i] << endl;
+    
     Address_Space self(MMU::current());
 
     cout << "Creating two extra data segments:" << endl;
@@ -28,8 +29,10 @@ int main()
     cout << "  extra segment 1 ("<< es1->pt() << ") => " << ES1_SIZE << " bytes, done!" << endl;
     cout << "  extra segment 2 ("<< es2->pt() << ") => " << ES2_SIZE << " bytes, done!" << endl;
 
+    /*
     for(int i = 0; i < 8; i++)
         cout << "PD[" << i << "] = " << hex << a[i] << endl;
+    */
 
     cout << "Attaching segments:" << endl;
     CPU::Log_Addr * extra1 = self.attach(es1);
@@ -37,6 +40,7 @@ int main()
     cout << "  extra segment 1 => " << extra1 << " done!" << endl;
     cout << "  extra segment 2 => " << extra2 << " done!" << endl;
 
+    /*
     for(int i = 0; i < 8; i++)
         cout << "PD[" << i << "] = " << hex << a[i] << endl;
 
@@ -49,6 +53,7 @@ int main()
     cout << "PT extra segment 2:"<< endl;
     for(int i = 0; i < 3; i++)
         cout << "PT[" << i << "] = " << hex << z[i] << endl;
+    */
    
    cout << "Clearing segments:";
    memset(extra1, 0, ES1_SIZE);
