@@ -194,11 +194,11 @@ void Setup::build_lm()
 
     // Get boot image structure
     // ATTENTION P3: this must be Long since we are dealing with a 64 bit architecture
-    si->lm.has_stp = ((si->bm.setup_offset) != -1ul);
-    si->lm.has_ini = ((si->bm.init_offset) != -1ul);
-    si->lm.has_sys = ((si->bm.system_offset) != -1ul);
-    si->lm.has_app = ((si->bm.application_offset) != -1ul);
-    si->lm.has_ext = ((si->bm.extras_offset) != -1ul);
+    si->lm.has_stp = (((long)si->bm.setup_offset) != -1l);
+    si->lm.has_ini = (((long)si->bm.init_offset) != -1l);
+    si->lm.has_sys = (((long)si->bm.system_offset) != -1l);
+    si->lm.has_app = (((long)si->bm.application_offset) != -1l);
+    si->lm.has_ext = (((long)si->bm.extras_offset) != -1l);
 
     // Check SETUP integrity and get the size of its segments
     if(si->lm.has_stp) {
@@ -445,7 +445,7 @@ void Setup::setup_app_pt()
     app_code_pt->remap(si->pmm.app_code, MMU::pti(si->lm.app_code), MMU::pti(si->lm.app_code) + MMU::pages(si->lm.app_code_size), Flags::SYS);
 
     // APPLICATION data (contains stack, heap and extra)
-    app_data_pt->remap(si->pmm.app_data, MMU::pti(si->lm.app_data), MMU::pti(si->lm.app_data) + MMU::pages(si->lm.app_data_size), Flags::APP);
+    app_data_pt->remap(si->pmm.app_data, MMU::pti(si->lm.app_data), MMU::pti(si->lm.app_data) + MMU::pages(si->lm.app_data_size), Flags::SYS);
 
     for(unsigned int i = 0; i < MMU::pts(MMU::pages(si->lm.app_code_size)); i++)
         db<Setup>(INF) << "APPC_PT[" << &app_code_pt[i] << "]=" << app_code_pt[i] << endl;
