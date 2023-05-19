@@ -13,6 +13,9 @@ class CPU: private CPU_Common
     friend class Init_System;
     friend class Machine;
 
+private:
+    static const bool multitask = Traits<System>::multitask;
+
 public:
     // Native Data Types
     using CPU_Common::Reg8;
@@ -271,7 +274,7 @@ public:
 
     public:
         Context() {}
-        Context(Log_Addr usp, Log_Addr entry): _eip(entry), _cs(SEL_SYS_CODE), _eflags(FLAG_DEFAULTS) {
+        Context(Log_Addr usp, Log_Addr entry): _esp3(usp), _eip(entry), _cs(((Traits<Build>::MODE == Traits<Build>::KERNEL) && usp)? SEL_APP_CODE : SEL_SYS_CODE), _eflags(FLAG_DEFAULTS) {
             if(Traits<Build>::hysterically_debugged || Traits<Thread>::trace_idle) {
                 _edi = 1; _esi = 2; _ebp = 3; _esp = 4; _ebx = 5; _edx = 6; _ecx = 7; _eax = 8;
             }
@@ -292,6 +295,7 @@ public:
                << ",bp=" << reinterpret_cast<void *>(c._ebp)
                << ",sp=" << &c
                << ",ip=" << reinterpret_cast<void *>(c._eip)
+               << ",usp="<< c._esp3
                << ",cs="  << c._cs
                << ",ccs=" << cs()
                << ",cds=" << ds()
@@ -305,10 +309,12 @@ public:
         }
 
     private:
-        static void pop(bool interrupt = false);
+        static void pop(bool interrupt = false, bool first_dispatch = false);
         static void push(bool interrupt = false);
+        static void first_dispatch() __attribute__ ((naked));
 
     private:
+        Reg32 _esp3; // only used in multitasking environments
         Reg32 _edi;
         Reg32 _esi;
         Reg32 _ebp;
@@ -381,6 +387,9 @@ public:
 
     static void switch_context(Context * volatile * o, Context * volatile n);
 
+    static void syscall(void * message);
+    static void syscalled();
+
     template<typename T>
     static T tsl(volatile T & lock) {
         register T old = 1;
@@ -436,12 +445,32 @@ public:
 
     template<typename ... Tn>
     static Context * init_stack(Log_Addr usp, Log_Addr sp, void (* exit)(), int (* entry)(Tn ...), Tn ... an) {
+        // Multitasking scenarios use this method with USP != 0 for application threads, what causes two contexts to be pushed into the thread's stack.
+        // The context pushed first (and popped last) is the "regular" one, with entry pointing to the thread's entry point.
+        // The second context (popped first) is a dummy context that has first_dispatch as entry point. It is a system-level context (CPL=0),
+        // so switch_context doesn't need to care for cross-level IRETs.
+
         sp -= SIZEOF<Tn ... >::Result;
         init_stack_helper(sp, an ...);
         sp -= sizeof(int *);
         *static_cast<int *>(sp) = Log_Addr(exit);
-        sp -= sizeof(Context);
-        return new (sp) Context(0, entry);
+
+        if(usp) { // multitask applications
+            // Real context
+            sp -= sizeof(int *);
+            *static_cast<int *>(sp) = Log_Addr(SEL_APP_DATA);
+            sp -= sizeof(int *);
+            *static_cast<int *>(sp) = usp;
+            sp -= sizeof(Context);
+            new (sp) Context(usp, entry);
+
+            // Dummy context
+            sp -= sizeof(Context);
+            return new (sp) Context(0, &Context::first_dispatch);
+        } else { // single-task or kernel threads in multitasking scenarios
+            sp -= sizeof(Context);
+            return new (sp) Context(0, entry);
+        }
     }
 
     template<typename ... Tn>
@@ -596,11 +625,19 @@ private:
     static Hertz _bus_clock;
 };
 
-inline void CPU::Context::pop(bool interrupt)
+inline void CPU::Context::pop(bool interrupt, bool first_dispatch)
 {
+if(interrupt || first_dispatch)
+    ASM("       mov     %%esp, %%eax    # update ESP0 in the dummy TSS          \n"
+        "       add     %1, %%eax       #   by calculating the value it will    \n"
+        "       movl    %%eax, %0       #   have after IRET                     \n" : "=m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + id() * PAGE_SIZE)->esp0) : "i"(CROSS_LEVEL_CONTEX_SIZE + (interrupt ? 0 : sizeof(long))) : "eax");
+
+if(!interrupt || first_dispatch) {
+    ASM("       pop     %0              # pop USP                               \n" : : "m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + id() * PAGE_SIZE)->esp3));
+}
     ASM("       popa                    # pop registers                         \n"
         "       iret                    # pop [SS, USP], FLAGS, CS, and IP,     \n"
-        "                               #   and return 			        \n");
+        "                               #   and return [to user-level]          \n");
 }
 
 inline void CPU::Context::push(bool interrupt)
@@ -611,8 +648,10 @@ if(!interrupt) {
         "       push    %cs             #   with FLAGS, CS                      \n"
         "       push    %esi            #   and IP                              \n");
 }
-
     ASM("       pusha                   # push registers                        \n");
+
+if(!interrupt)
+    ASM("       push    %0              # save USP                              \n" : "=m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + id() * PAGE_SIZE)->esp3) : );
 }
 
 inline CPU::Reg64 htole64(CPU::Reg64 v) { return CPU::htole64(v); }

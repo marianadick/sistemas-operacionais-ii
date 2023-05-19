@@ -65,7 +65,7 @@ public:
     }
 
     static void stvec(Mode mode, Log_Addr base) {
-    	Reg tmp = (base & 0xfffffffc) | (Reg(mode) & 0x3);
+    	Reg tmp = (base & -4UL) | (Reg(mode) & 0x3);
         ASM("csrw stvec, %0" : : "r"(tmp) : "cc");
     }
 

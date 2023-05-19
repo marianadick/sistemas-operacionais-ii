@@ -46,7 +46,7 @@ int producer()
 
     for(int i = 0; i < iterations; i++) {
         empty.p();
-        consume(100000);
+        produce(100000);
         buffer[in] = 'a' + in;
         cout << "P->" << buffer[in] << " ";
         in = (in + 1) % BUF_SIZE;

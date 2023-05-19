@@ -60,8 +60,8 @@ void IC::int_not(Interrupt_Id id)
 
 void IC::exception(Interrupt_Id id)
 {
-    CPU::Reg epc = CPU::epc();
-    CPU::Reg sp = CPU::sp();
+    CPU::Log_Addr epc = CPU::epc();
+    CPU::Log_Addr sp = CPU::sp();
     CPU::Reg status = CPU::status();
     CPU::Reg cause = CPU::cause();
     CPU::Reg tval = CPU::tval();
@@ -70,43 +70,43 @@ void IC::exception(Interrupt_Id id)
     db<IC,System>(WRN) << "IC::Exception(" << id << ") => {" << hex << "thread=" << thread << ",epc=" << epc << ",sp=" << sp << ",status=" << status << ",cause=" << cause << ",tval=" << tval << "}" << dec;
 
     switch(id) {
-    case 0: // unaligned instruction
+    case CPU::EXC_IALIGN: // instruction address misaligned
         db<IC, System>(WRN) << " => unaligned instruction";
         break;
-    case 1: // instruction access failure
+    case CPU::EXC_IFAULT: // instruction access fault
         db<IC, System>(WRN) << " => instruction protection violation";
         break;
-    case 2: // illegal instruction
+    case CPU::EXC_IILLEGAL: // illegal instruction
         db<IC, System>(WRN) << " => illegal instruction";
         break;
-    case 3: // break point
+    case CPU::EXC_BREAK: // break point
         db<IC, System>(WRN) << " => break point";
         break;
-    case 4: // unaligned load address
+    case CPU::EXC_DRALIGN: // load address misaligned
         db<IC, System>(WRN) << " => unaligned data read";
         break;
-    case 5: // load access failure
+    case CPU::EXC_DRFAULT: // load access fault
         db<IC, System>(WRN) << " => data protection violation (read)";
         break;
-    case 6: // unaligned store address
+    case CPU::EXC_DWALIGN: // store/AMO address misaligned
         db<IC, System>(WRN) << " => unaligned data write";
         break;
-    case 7: // store access failure
+    case CPU::EXC_DWFAULT: // store/AMO access fault
         db<IC, System>(WRN) << " => data protection violation (write)";
         break;
-    case 8: // user-mode environment call
-    case 9: // supervisor-mode environment call
-    case 10: // reserved... not described
-    case 11: // machine-mode environment call
+    case CPU::EXC_ENVU: // ecall from user-mode
+    case CPU::EXC_ENVS: // ecall from supervisor-mode
+    case CPU::EXC_ENVH: // reserved
+    case CPU::EXC_ENVM: // reserved
         db<IC, System>(WRN) << " => bad ecall";
         break;
-    case 12: // Instruction Page Table failure
-        db<IC, System>(WRN) << " => page fault";
+    case CPU::EXC_IPF: // Instruction page fault
+        db<IC, System>(WRN) << " => instruction page fault";
         break;
-    case 13: // Load Page Table failure
-    case 14: // reserved... not described
-    case 15: // Store Page Table failure
-        db<IC, System>(WRN) << " => page table protection violation";
+    case CPU::EXC_DRPF: // load page fault
+    case CPU::EXC_RES: // reserved
+    case CPU::EXC_DWPF: // store/AMO page fault
+        db<IC, System>(WRN) << " => data page fault";
         break;
     default:
         int_not(id);
@@ -116,7 +116,7 @@ void IC::exception(Interrupt_Id id)
     db<IC, System>(WRN) << endl;
 
     if(Traits<Build>::hysterically_debugged)
-        db<IC, System>(ERR) << "Exception stoped execution due to hysterically debuggeing!" << endl;
+        db<IC, System>(ERR) << "Exception stopped execution due to hysterically debugging!" << endl;
 
     CPU::fr(sizeof(void *)); // tell CPU::Context::pop(true) to perform PC = PC + [4|8] on return
 }

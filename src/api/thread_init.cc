@@ -15,6 +15,8 @@ void Thread::init()
 
     Criterion::init();
 
+#ifdef __library__
+
     typedef int (Main)();
 
     // If EPOS is a library, then adjust the application entry point to __epos_app_entry, which will directly call main().
@@ -22,6 +24,16 @@ void Thread::init()
     Main * main = reinterpret_cast<Main *>(__epos_app_entry);
 
     new (SYSTEM) Thread(Thread::Configuration(Thread::RUNNING, Thread::MAIN), main);
+
+#else
+
+    typedef int (Main)(int argc, char * argv[]);
+
+    System_Info * si = System::info();
+
+    Main * main = reinterpret_cast<Main *>(si->lm.app_entry);
+
+#endif
 
     // Idle thread creation does not cause rescheduling (see Thread::constructor_epilogue)
     new (SYSTEM) Thread(Thread::Configuration(Thread::READY, Thread::IDLE), &Thread::idle);

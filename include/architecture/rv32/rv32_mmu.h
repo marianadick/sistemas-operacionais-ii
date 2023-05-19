@@ -144,10 +144,8 @@ public:
     class Chunk
     {
     public:
-        Chunk() {}
-
         Chunk(unsigned long bytes, Flags flags, Color color = WHITE)
-        : _from(0), _to(pages(bytes)), _pts(Common::pts(_to - _from)), _flags(Page_Flags(flags)), _pt(calloc(_pts, WHITE)) {
+        : _free(true), _from(0), _to(pages(bytes)), _pts(Common::pts(_to - _from)), _flags(Page_Flags(flags)), _pt(calloc(_pts, WHITE)) {
             if(_flags & Page_Flags::CT)
                 _pt->map_contiguous(_from, _to, _flags, color);
             else
@@ -155,27 +153,29 @@ public:
         }
 
         Chunk(Phy_Addr phy_addr, unsigned long bytes, Flags flags)
-        : _from(0), _to(pages(bytes)), _pts(Common::pts(_to - _from)), _flags(Page_Flags(flags)), _pt(calloc(_pts, WHITE)) {
+        : _free(true), _from(0), _to(pages(bytes)), _pts(Common::pts(_to - _from)), _flags(Page_Flags(flags)), _pt(calloc(_pts, WHITE)) {
             _pt->remap(phy_addr, _from, _to, flags);
         }
 
         Chunk(Phy_Addr pt, unsigned int from, unsigned int to, Flags flags)
-        : _from(from), _to(to), _pts(Common::pts(_to - _from)), _flags(flags), _pt(pt) {}
+        : _free(false), _from(from), _to(to), _pts(Common::pts(_to - _from)), _flags(flags), _pt(pt) {}
 
         Chunk(Phy_Addr pt, unsigned int from, unsigned int to, Flags flags, Phy_Addr phy_addr)
-        : _from(from), _to(to), _pts(Common::pts(_to - _from)), _flags(flags), _pt(pt) {
+        : _free(false), _from(from), _to(to), _pts(Common::pts(_to - _from)), _flags(flags), _pt(pt) {
             _pt->remap(phy_addr, _from, _to, flags);
         }
 
         ~Chunk() {
-            if(!(_flags & Page_Flags::IO)) {
-                if(_flags & Page_Flags::CT)
-                    free((*_pt)[_from], _to - _from);
-                else
-                    for( ; _from < _to; _from++)
-                        free((*_pt)[_from]);
+            if(_free) {
+                if(!(_flags & Page_Flags::IO)) {
+                    if(_flags & Page_Flags::CT)
+                        free((*_pt)[_from], _to - _from);
+                    else
+                        for( ; _from < _to; _from++)
+                            free((*_pt)[_from]);
+                }
+                free(_pt, _pts);
             }
-            free(_pt, _pts);
         }
 
         unsigned int pts() const { return _pts; }
@@ -212,6 +212,7 @@ public:
         }
 
     private:
+        bool _free;
         unsigned int _from;
         unsigned int _to;
         unsigned int _pts;
@@ -226,7 +227,7 @@ public:
     class Directory
     {
     public:
-        Directory() : _pd(calloc(1, WHITE)), _free(true) {
+        Directory(): _free(true), _pd(calloc(1, WHITE)) {
             for(unsigned int i = pdi(IO); i < pdi(APP_LOW); i++)
                 (*_pd)[i] = (*_master)[i];
             
@@ -234,7 +235,7 @@ public:
                 (*_pd)[i] = (*_master)[i];
         }
 
-        Directory(Page_Directory * pd) : _pd(pd), _free(false) {}
+        Directory(Page_Directory * pd): _free(false), _pd(pd) {}
 
         ~Directory() { if(_free) free(_pd); }
 
@@ -300,8 +301,8 @@ public:
         }
 
     private:
-        Page_Directory * _pd;  // this is a physical address, but operator*() returns a logical address
         bool _free;
+        Page_Directory * _pd;  // this is a physical address, but operator*() returns a logical address
     };
 
     // DMA_Buffer
@@ -426,8 +427,14 @@ public:
     static PD_Entry phy2pde(Phy_Addr frame) { return (frame >> 2) | Page_Flags::V; }
     static Phy_Addr pde2phy(PD_Entry entry) { return (entry & ~Page_Flags::MASK) << 2; }
 
+#ifdef __setup__
+    // SETUP uses the MMU to build a primordial memory model before turning the MMU on, so no log vs phy adjustments are made
+    static Log_Addr phy2log(Phy_Addr phy) { return Log_Addr((RAM_BASE == PHY_MEM) ? phy : (RAM_BASE > PHY_MEM) ? phy : phy ); }
+    static Phy_Addr log2phy(Log_Addr log) { return Phy_Addr((RAM_BASE == PHY_MEM) ? log : (RAM_BASE > PHY_MEM) ? log : log ); }
+#else
     static Log_Addr phy2log(Phy_Addr phy) { return Log_Addr((RAM_BASE == PHY_MEM) ? phy : (RAM_BASE > PHY_MEM) ? phy - (RAM_BASE - PHY_MEM) : phy + (PHY_MEM - RAM_BASE)); }
     static Phy_Addr log2phy(Log_Addr log) { return Phy_Addr((RAM_BASE == PHY_MEM) ? log : (RAM_BASE > PHY_MEM) ? log + (RAM_BASE - PHY_MEM) : log - (PHY_MEM - RAM_BASE)); }
+#endif
 
     static Color phy2color(Phy_Addr phy) { return static_cast<Color>(colorful ? ((phy >> PT_SHIFT) & 0x7f) % COLORS : WHITE); } // TODO: what is 0x7f
 

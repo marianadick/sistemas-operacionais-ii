@@ -81,13 +81,13 @@ public:
         EXC_DWALIGN      = 6,   // Store/AMO address misaligned
         EXC_DWFAULT      = 7,   // Store/AMO access fault
         EXC_ENVU         = 8,   // Environment call from U-mode
-        EXC_RES1         = 9,   // Environment call from S-mode
-        EXC_ENVH        = 10,   // reserved
-        EXC_ENVM        = 11,   // Environment call from M-mode
-        EXC_IPF         = 12,   // Instruction page fault
-        EXC_DPF         = 13,   // Data page fault
-        EXC_RES2        = 14,   // reserved
-        EXC_AMOPF       = 15,   // Store/AMO page fault
+        EXC_ENVS         = 9,   // Environment call from S-mode
+        EXC_ENVH         = 10,  // reserved
+        EXC_ENVM         = 11,  // Environment call from M-mode
+        EXC_IPF          = 12,  // Instruction page fault
+        EXC_DRPF         = 13,  // Load data page fault
+        EXC_RES          = 14,  // reserved
+        EXC_DWPF         = 15,  // Store/AMO data page fault
     };
 
     // CPU Context
@@ -428,16 +428,22 @@ private:
 inline void CPU::Context::push(bool interrupt)
 {
     ASM("       addi     sp, sp, %0             \n" : : "i"(-sizeof(Context))); // adjust SP for the pushes below
-
 if(interrupt) {
+  if(multitask) {
+    ASM("       csrr     x3,    sepc            \n"
+        "       sw       x3,    0(sp)           \n");   // push SEPC as PC on interrupts
+  } else {
     ASM("       csrr     x3,    mepc            \n"
         "       sw       x3,    0(sp)           \n");   // push MEPC as PC on interrupts
+  }
 } else {
     ASM("       sw       x1,    0(sp)           \n");   // push RA as PC on context switches
 }
-
-    ASM("       csrr     x3,  mstatus           \n");
-
+if(multitask) {
+    ASM("       csrr     x3, sstatus            \n");
+} else {
+    ASM("       csrr     x3, mstatus            \n");
+}
     ASM("       sw       x3,    4(sp)           \n"     // push ST
         "       sw       x1,    8(sp)           \n"     // push RA
         "       sw       x5,   12(sp)           \n"     // push x5-x31
@@ -475,14 +481,16 @@ inline void CPU::Context::pop(bool interrupt)
 if(interrupt) {
     ASM("       add      x3, x3, a0             \n");   // a0 is set by exception handlers to adjust [M|S]EPC to point to the next instruction if needed
 }
+if(multitask) {
+    ASM("       csrw     sepc, x3               \n");   // SEPC = PC
+} else {
     ASM("       csrw     mepc, x3               \n");   // MEPC = PC
-
-    ASM("       lw       x3,    4(sp)           \n");   // pop ST into TMP
-if(!interrupt) {
-    ASM("       li       a0, 3 << 11            \n"     // use a0 as a second TMP, since it will be restored later
-        "       or       x3, x3, a0             \n");   // mstatus.MPP is automatically cleared on mret, so we reset it to MPP_M here
 }
-
+    ASM("       lw       x3,    4(sp)           \n");   // pop ST into TMP
+if(!interrupt) {										// [M|S]STATUS.[M|S]PP is automatically cleared on the [m|s]ret in the ISR, so we need to recover it here
+    ASM("       li       a0,     %0             \n"     // use a0 as a second TMP (it will be restored later) to adjust [M|S]STATUS.[M|S]PP
+        "       or       x3, x3, a0             \n" : : "i"(multitask ? SPP_S : MPP_M));
+}
     ASM("       lw       x1,    8(sp)           \n"     // pop RA
         "       lw       x5,   12(sp)           \n"     // pop x5-x31
         "       lw       x6,   16(sp)           \n"
@@ -512,8 +520,11 @@ if(!interrupt) {
         "       lw      x30,  112(sp)           \n"
         "       lw      x31,  116(sp)           \n"
         "       addi    sp, sp, %0              \n" : : "i"(sizeof(Context))); // complete the pops above by adjusting SP
-
+if(multitask) {
+    ASM("       csrw    sstatus, x3             \n");   // SSTATUS = ST
+} else {
     ASM("       csrw    mstatus, x3             \n");   // MSTATUS = ST
+}
 }
 
 inline CPU::Reg64 htole64(CPU::Reg64 v) { return CPU::htole64(v); }

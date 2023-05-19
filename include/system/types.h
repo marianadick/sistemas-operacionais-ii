@@ -67,10 +67,6 @@ template <typename ... Tn> struct Dummy {
     friend Debug & operator<<(Debug & db, const Dummy & d) { return db; };
 };
 
-__END_UTIL
-
-__BEGIN_SYS
-
 static const int MAX_INT = -1U/2;
 static const long int MAX_LONG_INT = -1UL/2;
 static const long long int MAX_LONG_LONG_INT = -1ULL/2;
@@ -96,7 +92,7 @@ enum Infinity : Time_Base { INFINITE = -1U };
 class Second
 {
 public:
-	typedef Time_Base Type;
+    typedef Time_Base Type;
 
 public:
     Second() {};
@@ -114,7 +110,7 @@ private:
 class Milisecond
 {
 public:
-	typedef Time_Base Type;
+    typedef Time_Base Type;
 
 public:
     Milisecond() {};
@@ -133,7 +129,7 @@ private:
 class Microsecond
 {
 public:
-	typedef Time_Base Type;
+    typedef Time_Base Type;
 
 public:
     Microsecond() {};
@@ -153,6 +149,10 @@ private:
 typedef unsigned long Hertz;
 typedef unsigned long PPM; // parts per million
 typedef unsigned long long PPB; // parts per billion
+
+__END_UTIL
+
+__BEGIN_SYS
 
 // System Components IDs
 // The order in this enumeration defines many things in the system (e.g. init)

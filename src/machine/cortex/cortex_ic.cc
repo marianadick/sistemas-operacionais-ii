@@ -19,6 +19,8 @@ extern "C" { void _fiq() __attribute__ ((alias("_ZN4EPOS1S2IC3fiqEv"))); }
 #ifdef __cortex_m__
 extern "C" { void _dispatch() __attribute__ ((alias("_ZN4EPOS1S2IC8dispatchEj"))); }
 #endif
+extern "C" { void _exit(int s); }
+extern "C" { void __exit(); }
 
 __BEGIN_SYS
 
@@ -205,7 +207,11 @@ void IC::prefetch_abort()
     // A prefetch abort on __exit is triggered by MAIN after returning to CRT0 and by the other threads after returning using the LR initialized at creation time to invoke Thread::exit()
 
     CPU::svc_enter(CPU::MODE_ABORT, false); // enter SVC to capture LR (the faulting address) in r1
-    db<IC, Machine>(TRC) << "IC::prefetch_abort() [addr=" << CPU::Log_Addr(CPU::r1()) << "]" << endl;
+    if((CPU::r1()) == CPU::Reg(&__exit)) {
+        db<IC,Machine>(INF) << "IC::prefetch_abort: thread's final return!" << endl;
+       _exit(CPU::fr());
+    } else
+        db<IC, Machine>(TRC) << "IC::prefetch_abort() [addr=" << CPU::Log_Addr(CPU::r1()) << "]" << endl;
     CPU::svc_stay();  // undo the context saving of svc_enter(), but do not leave SVC
     kill();
 }

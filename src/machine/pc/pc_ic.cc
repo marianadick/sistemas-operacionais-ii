@@ -888,6 +888,13 @@ void IC::exc_not(Reg eip, Reg cs, Reg eflags, Reg error)
 
 void IC::exc_pf(Reg eip, Reg cs, Reg eflags, Reg error)
 {
+    register Reg fr = CPU::fr();
+
+    if(CPU::cr2() == reinterpret_cast<CPU::Reg>(&__exit)) {
+        db<IC,Machine>(INF) << "IC::exc_pf: thread's final return!" << endl;
+       _exit(fr);
+    }
+
     db<IC,Machine>(WRN) << "IC::exc_pf[address=" << reinterpret_cast<void *>(CPU::cr2()) << "](cs=" << hex << cs << ",ip=" << reinterpret_cast<void *>(eip) << ",sp=" << CPU::sp() << ",fl=" << hex << eflags << dec << ",err=";
     if(error & (1 << 0))
         db<IC,Machine>(WRN) << "P";
