@@ -494,7 +494,7 @@ private:
     static Page_Directory * _master;
 };
 
-class MMU: public IF<Traits<System>::multitask || true, ARMv8_MMU, No_MMU>::Result {};
+class MMU: public IF<Traits<System>::multitask, ARMv8_MMU, No_MMU>::Result {};
 
 __END_SYS
 

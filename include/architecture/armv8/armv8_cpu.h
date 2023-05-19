@@ -174,7 +174,7 @@ public:
     {
     public:
         Context(){}
-        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): _pstate(FLAG_SP_ELn | FLAG_EL1 | FLAG_A | FLAG_D), _lr(exit), _pc(entry) {
+        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): _usp(usp), _ulr(exit), _pstate(FLAG_SP_ELn | FLAG_EL1 | FLAG_A | FLAG_D), _lr(exit), _pc(entry) {
             if(Traits<Build>::hysterically_debugged || Traits<Thread>::trace_idle) {
                 _x0 = 0; _x1 = 1; _x2 = 2; _x3 = 3; _x4 = 4; _x5 = 5; _x6 = 6; _x7 = 7; _x8 = 8; _x9 = 9; _x10 = 10; _x11 = 11; _x12 = 12; _x13 = 13; _x14 = 14; _x15 = 15;
                 _x16 = 16; _x17 = 17; _x18 = 18; _x19 = 19; _x20 = 20; _x21 = 21; _x22 = 22; _x23 = 23; _x24 = 24; _x25 = 25; _x26 = 26; _x27 = 27; _x28 = 28; _x29 = 29;
@@ -219,11 +219,15 @@ public:
                << ",sp="  << &c
                << ",lr="  << c._lr
                << ",pc="  << c._pc
+               << ",usp=" << c._usp
+               << ",ulr=" << c._ulr
                << ",ps="  << c._pstate
                << "}" << dec;
             return os;
         }
     public:
+        Reg _usp;
+        Reg _ulr;
         Reg _pstate;
         Reg _x0;
         Reg _x1;
@@ -314,6 +318,12 @@ public:
     static void cpsrc(Reg r) {   ASM("msr daif, %0" : "=r"(r) :); }
 
     static Reg esr_el1() { Reg r; ASM("mrs %0, esr_el1" : "=r"(r) :); return r; }
+
+    static Reg  sp_el0() { Reg r; ASM("mrs %0, sp_el0" :  "=r"(r) : : ); return r; }
+    static void sp_el0(Reg r) {   ASM("msr sp_el0, %0" : : "r"(r): ); }
+
+    static Reg  sp_el1() { Reg r; ASM("mrs %0, sp_el1" :  "=r"(r) : : ); return r; }
+    static void sp_el1(Reg r) {   ASM("msr sp_el1, %0" : : "r"(r): ); }
 
     // x16 and x17 are the intra-procedure-call temporary registers
     static void pstate_to_tmp() {
@@ -508,7 +518,7 @@ public:
     {
     public:
         Context() {}
-        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): Base::Context(entry, exit, 0) {}
+        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): Base::Context(entry, exit, usp) {}
 
         void save() volatile __attribute__ ((naked));
         void load() const volatile __attribute__ ((naked));
@@ -585,11 +595,26 @@ public:
 
     template<typename ... Tn>
     static Context * init_stack(Log_Addr usp, Log_Addr sp, void (* exit)(), int (* entry)(Tn ...), Tn ... an) {
+        // Real context
         sp -= sizeof(Context);
         Context * ctx = new(sp) Context(entry, exit, usp); // init_stack is called with usp = 0 for kernel threads
         init_stack_helper(&ctx->_x0, an ...);
+        
+        // Dummy context
+        if(multitask) {
+            sp -= sizeof(Context);
+            ctx = new(sp) Context(&context_load_helper, exit, 0);
+            ctx->_usp = usp; // usp is used here to set the sp_usr at switch()
+        }
         return ctx;
     }
+
+    // In ARMv8, the main thread of each task gets parameters over registers, not the stack, and they are initialized by init_stack.
+    template<typename ... Tn>
+    static Log_Addr init_user_stack(Log_Addr usp, void (* exit)(), Tn ... an) { return usp; }
+
+    static void syscall(void * message);
+    static void syscalled();
 
     using CPU_Common::htole64;
     using CPU_Common::htole32;

@@ -479,7 +479,7 @@ void Setup::setup_sys_pd()
                    << "})" << endl;
 
     // Check alignments
-    assert(MMU::pdi(SETUP) == MMU::pdi(RAM_BASE));
+    assert(MMU::pdi(SETUP) <= MMU::pdi(APP_LOW));
     assert(MMU::pdi(INT_M2S) == MMU::pdi(RAM_TOP));
     if(RAM_BASE != MMU::align_segment(RAM_BASE))
         db<Setup>(WRN) << "Setup::setup_sys_pd: unaligned physical memory!" << endl;
@@ -501,14 +501,14 @@ void Setup::setup_sys_pd()
     if(dir.attach(mem, PHY_MEM) != PHY_MEM)
         db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach physical memory at " << reinterpret_cast<void *>(PHY_MEM) << "!" << endl;
 
-    // Also attach the portions of the physical memory used by SETUP itself and by INIT
+    // Also attach the portions of the physical memory used by SETUP (including the BOOT_STACK)
     if(PHY_MEM != RAM_BASE) {
         Chunk base(&mem_pt[MMU::ati(RAM_BASE)], MMU::pti(RAM_BASE, APP_LOW), MMU::pti(RAM_BASE, APP_LOW) + MMU::pages(APP_LOW - RAM_BASE), Flags::SYS);
         Chunk top(&mem_pt[MMU::ati(RAM_TOP)], 0, MMU::PT_ENTRIES, Flags::SYS);
         if(dir.attach(base, RAM_BASE) != RAM_BASE)
-            db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach SETUP+INIT physical memory at " << reinterpret_cast<void *>(RAM_BASE) << "!" << endl;
+            db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach SETUP physical memory at " << reinterpret_cast<void *>(RAM_BASE) << "!" << endl;
         if(dir.attach(top, MMU::align_segment(RAM_TOP) - sizeof(MMU::Big_Page)) != MMU::align_segment(RAM_TOP) - sizeof(MMU::Big_Page))
-            db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach SETUP+INIT physical memory at " << static_cast<void *>(MMU::align_segment(RAM_TOP) - sizeof(MMU::Big_Page)) << "!" << endl;
+            db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach SETUP physical memory at " << static_cast<void *>(MMU::align_segment(RAM_TOP) - sizeof(MMU::Big_Page)) << "!" << endl;
     }
 
     // Map I/O address space into the page tables pointed by io_pt
@@ -688,8 +688,7 @@ void Setup::call_next()
         else
             pc = si->lm.app_entry;
 
-        // Arrange a stack for each CPU to support stage transition
-        // The 2 integers on the stacks are room for the return address
+        // Next stage will use SYS_STACK instead of BOOT_STASCK (the 2 integers on the stacks are room for the return address)
         Log_Addr sp = SYS_STACK + Traits<System>::STACK_SIZE - 2 * sizeof(long);
 
         db<Setup>(TRC) << "Setup::call_next(pc=" << pc << ",sp=" << sp << ") => ";
@@ -700,7 +699,6 @@ void Setup::call_next()
         else
             db<Setup>(TRC) << "APPLICATION" << endl;
 
-        // Set SP and call the next stage
         CPU::sp(sp);
     } else
         pc = &_start;
@@ -729,7 +727,7 @@ void _entry() // machine mode
         CPU::halt();
 
     CPU::mstatusc(CPU::MIE);                            // disable interrupts (they will be reenabled at Init_End)
-    CPU::mies(CPU::MSI | CPU::MTI | CPU::MEI);          // enable interrupts generation by CLINT at machine level
+    CPU::mie(CPU::MSI | CPU::MTI | CPU::MEI);           // enable interrupts generation by CLINT at machine level
 
     CPU::tp(CPU::mhartid());                            // tp will be CPU::id() for supervisor mode
     CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE - sizeof(long)); // set the stack pointer, thus creating a stack for SETUP
@@ -761,25 +759,24 @@ void _setup() // supervisor mode
     Setup setup;
 }
 
-// RISC-V 32 doesn't allow timer interrupts (MTI) to be handled in supervisor mode. The matching of MTIMECMP always triggers interrupt MTI and there seems to be no mechanism in CLINT to trigger STI.
-// Therefore, an interrupt forwarder must be installed. We use RAM_TOP for this, with the code at the beginning of the last page and a stack at the end of the same page.
+// RISC-V's CLINT triggers interrupt 7 (MTI) whenever MTIME == MTIMECMP and there is no way to instruct it to trigger interrupt 9 (STI). So, even if we delegate all interrupts with MIDELEG, MTI doesn't turn into STI and MTI is visible in SIP. In other words, MTI must always be handled in machine mode, although the OS will run in supervisor mode.
+// Therefore, an interrupt forwarder must be installed in machine mode to catch MTI and manually trigger STI. We use RAM_TOP for this, with the code at the beginning of the last page and a stack at the end of the same page.
 void _int_m2s()
 {
     // Save context
-    ASM("        csrw  mscratch,     sp                                 \n");
+    ASM("       csrw    mscratch, sp                                 \n");
 if(Traits<CPU>::WORD_SIZE == 32) {
-    ASM("        la          sp,     %0                                 \n"
-        "        sw          a2,   0(sp)                                \n"
-        "        sw          a3,   4(sp)                                \n"
-        "        sw          a4,   8(sp)                                \n"
-        "        sw          a5,  12(sp)                                \n" : : "i"(Memory_Map::BOOT_STACK - 16));
+    ASM("       auipc    sp,      1             \n"     // SP = PC + 1 << 2 (INT_M2S + 4 + sizeof(Page))
+        "       sw       a2, -12(sp)            \n"
+        "       sw       a3, -16(sp)            \n"
+        "       sw       a4, -20(sp)            \n"
+        "       sw       a5, -24(sp)            \n");
 } else {
-    ASM("        lui         sp,     %0                                 \n"
-        "        addi        sp, sp, %1                                 \n"
-        "        sd          a2,   0(sp)                                \n"
-        "        sd          a3,   8(sp)                                \n"
-        "        sd          a4,  16(sp)                                \n"
-        "        sd          a5,  24(sp)                                \n" : : "i"((Memory_Map::BOOT_STACK - 32) >> 12), "i"((Memory_Map::BOOT_STACK - 32) && 0xfff));
+    ASM("       auipc    sp,      1             \n"     // SP = PC + 1 << 2 (INT_M2S + 4 + sizeof(Page))
+        "       sd       a2, -20(sp)            \n"
+        "       sd       a3, -28(sp)            \n"
+        "       sd       a4, -36(sp)            \n"
+        "       sd       a5, -44(sp)            \n");
 }
 
     CPU::Reg id = CPU::mcause();
@@ -796,16 +793,16 @@ if(Traits<CPU>::WORD_SIZE == 32) {
 
     // Restore context
 if(Traits<CPU>::WORD_SIZE == 32) {
-    ASM("        lw          a2,   0(sp)                                \n"
-        "        lw          a3,   4(sp)                                \n"
-        "        lw          a4,   8(sp)                                \n"
-        "        lw          a5,  12(sp)                                \n");
+    ASM("       lw       a2, -12(sp)            \n"
+        "       lw       a3, -16(sp)            \n"
+        "       lw       a4, -20(sp)            \n"
+        "       lw       a5, -24(sp)            \n");
 } else {
-    ASM("        ld          a2,   0(sp)                                \n"
-        "        ld          a3,   8(sp)                                \n"
-        "        ld          a4,  16(sp)                                \n"
-        "        ld          a5,  24(sp)                                \n");
+    ASM("       ld       a2, -20(sp)            \n"
+        "       ld       a3, -28(sp)            \n"
+        "       ld       a4, -36(sp)            \n"
+        "       ld       a5, -44(sp)            \n");
 }
-    ASM("        csrr        sp, mscratch                               \n"
-        "        mret                                                   \n");
+    ASM("       csrr     sp, mscratch           \n"
+        "       mret                            \n");
 }

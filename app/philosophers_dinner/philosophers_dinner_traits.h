@@ -9,7 +9,7 @@ __BEGIN_SYS
 template<> struct Traits<Build>: public Traits_Tokens
 {
     // Basic configuration
-    static const unsigned int MODE = LIBRARY;
+    static const unsigned int MODE = KERNEL;
     static const unsigned int ARCHITECTURE = RV64;
     static const unsigned int MACHINE = RISCV;
     static const unsigned int MODEL = SiFive_U;
@@ -114,6 +114,11 @@ template<> struct Traits<System>: public Traits<Build>
 
     static const unsigned int STACK_SIZE = Traits<Machine>::STACK_SIZE;
     static const unsigned int HEAP_SIZE = (Traits<Application>::MAX_THREADS + 1) * Traits<Application>::STACK_SIZE;
+};
+
+template<> struct Traits<Task>: public Traits<Build>
+{
+    static const bool enabled = Traits<System>::multitask;
 };
 
 template<> struct Traits<Thread>: public Traits<Build>
