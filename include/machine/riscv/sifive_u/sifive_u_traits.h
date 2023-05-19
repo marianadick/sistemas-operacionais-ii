@@ -20,7 +20,7 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
 public:
     // Value to be used for undefined addresses
-    static const unsigned int NOT_USED          = 0xffffffff;
+    static const unsigned long NOT_USED          = 0xffffffffffffffff;
 
     // Clocks
     static const unsigned int CLOCK             = 1000000000;                            // CORECLK
@@ -29,27 +29,28 @@ public:
     static const unsigned int TLCLK             = CLOCK / 2;                            // L2 cache and peripherals such as UART, SPI, I2C, and PWM operate in a single clock domain (tlclk) running at coreclk/2 rate. There is a low-latency 2:1 crossing between coreclk and tlclk domains.
 
     // Physical Memory
-    static const unsigned int RAM_BASE          = 0x80000000;                           // 2 GB
-    static const unsigned int RAM_TOP           = 0x87ffffff;                           // 2 GB + 128 MB (max 1536 MB of RAM => RAM + MIO < 2 G)
-    static const unsigned int MIO_BASE          = 0x00000000;
-    static const unsigned int MIO_TOP           = 0x1fffffff;                           // 512 MB (max 512 MB of MIO => RAM + MIO < 2 G)
+    static const unsigned long RAM_BASE          = 0x0000000080000000;                           // 2 GB
+    static const unsigned long RAM_TOP           = 0x0000000087ffffff;                           // 2 GB + 128 MB (max 1536 MB of RAM => RAM + MIO < 2 G)
+    static const unsigned long MIO_BASE          = 0x0000000000000000;
+    static const unsigned long MIO_TOP           = 0x000000001fffffff;                           // 512 MB (max 512 MB of MIO => RAM + MIO < 2 G)
 
-    // Physical Memory at Boot
-    static const unsigned int BOOT              = NOT_USED;
-    static const unsigned int SETUP             = multitask ? RAM_BASE : NOT_USED;        // RAM_BASE (will be part of the free memory at INIT, using a logical address identical to physical eliminate SETUP relocation)
-    static const unsigned int IMAGE             = 0x80100000;                           // RAM_BASE + 1 MB (will be part of the free memory at INIT, defines the maximum image size; if larger than 3 MB then adjust at SETUP)
+                             // SYS - 1
+    static const unsigned long BOOT              = NOT_USED;
+    static const unsigned long SETUP             = multitask ? RAM_BASE : NOT_USED;        // RAM_BASE (will be part of the free memory at INIT, using a logical address identical to physical eliminate SETUP relocation)
+    static const unsigned long IMAGE             = 0x0000000080100000;                           // RAM_BASE + 1 MB (will be part of the free memory at INIT, defines the maximum image size; if larger than 3 MB then adjust at SETUP)
 
     // Logical Memory
-    static const unsigned int APP_LOW           = multitask ? 0x80400000 : RAM_BASE;      // 2 GB + 4 MB
-    static const unsigned int APP_HIGH          = 0xff7fffff;                           // SYS - 1
+    static const unsigned long APP_LOW           = multitask ? 0x0000000080400000 : RAM_BASE ;      // 2 GB + 4 MB
+    static const unsigned long APP_HIGH          = 0xffffffffff7fffff;                           // SYS - 1
 
-    static const unsigned int APP_CODE          = APP_LOW;
-    static const unsigned int APP_DATA          = APP_CODE + 4 * 1024 * 1024;
+    static const unsigned long APP_CODE          = APP_LOW;
+    static const unsigned long APP_DATA          = APP_CODE + 4 * 1024 * 1024;
 
-    static const unsigned int INIT              = NOT_USED;      // RAM_BASE + 512 KB (will be part of the free memory at INIT)
-    static const unsigned int PHY_MEM           = multitask ? 0x20000000 : RAM_BASE;      // 512 MB (max 1536 MB of RAM)
-    static const unsigned int IO                = 0x00000000;                           // 0 (max 512 MB of IO = MIO_TOP - MIO_BASE)
-    static const unsigned int SYS               = 0xff800000;                           // 4 GB - 8 MB
+    
+    static const unsigned long INIT              = 0xffffffff80080000;      // RAM_BASE + 512 KB (will be part of the free memory at INIT)
+    static const unsigned long PHY_MEM           = multitask ? 0x0000000020000000 : RAM_BASE;      // 512 MB (max 1536 MB of RAM)
+    static const unsigned long IO                = 0x0000000000000000;                           // 0 (max 512 MB of IO = MIO_TOP - MIO_BASE)
+    static const unsigned long SYS               = 0xffffffffff800000;                           // 4 GB - 8 MB
 
     // Default Sizes and Quantities
     static const unsigned int MAX_THREADS       = 16;
