@@ -404,16 +404,16 @@ void Setup::say_hi()
     kout << endl;
 }
 
-// TO-DO P4: add init
+// P4: Init page table setup
 void Setup::setup_init_pt()
 {
-    // Get the physical address for the SYSTEM Page Table, which was allocated with calloc()
-    Page_Table *init_pt = reinterpret_cast<Page_Table *>(si->pmm.init_pt);
+    // Gets the physical address for the Init Page Table, which was allocated with calloc()
+    Page_Table * init_pt = reinterpret_cast<Page_Table *>(si->pmm.init_pt);
 
-    // INIT code
+    // Set an entry to this page table, so the system can access it later
+    // sys_pt->remap(si->pmm.sys_pt, MMU::pti(SYS, SYS_PT), MMU::pti(SYS, SYS_PT) + 1, Flags::SYS);
+
     init_pt->remap(si->pmm.init_code, MMU::pti(si->lm.ini_code), MMU::pti(si->lm.ini_code) + MMU::pages(si->lm.ini_code_size), Flags::SYS);
-
-    // INIT data
     init_pt->remap(si->pmm.init_data, MMU::pti(si->lm.ini_data), MMU::pti(si->lm.ini_data) + MMU::pages(si->lm.ini_data_size), Flags::SYS);
 }
 
@@ -547,11 +547,10 @@ void Setup::setup_sys_pd()
     if(dir.attach(io, IO) != IO)
         db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach memory-mapped I/O at " << reinterpret_cast<void *>(IO) << "!" << endl;
 
-    // TO-DO P4: ADD INIT
-    // Attach INIT
+    // P4 -> Shoul attach Init
     Chunk init(si->pmm.init_pt, MMU::pti(si->lm.ini_code), MMU::pti(si->lm.ini_code) + MMU::pages(si->lm.ini_code_size) + MMU::pages(si->lm.ini_data_size), Flags::SYS);
     if (dir.attach(init, INIT) != INIT)
-        db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach INIT at " << reinterpret_cast<void *>(INIT) << "!" << endl;
+        db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach init at " << reinterpret_cast<void *>(INIT) << "!" << endl;
 
     // Attach the OS (i.e. sys_pt)
     Chunk os(si->pmm.sys_pt, MMU::pti(SYS), MMU::pti(SYS) + MMU::pages(SYS_HEAP - SYS), Flags::SYS);
