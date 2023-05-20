@@ -69,8 +69,8 @@ public:
         SYS_PD          = multitask ? SYS + 0x0000000000102000 : NOT_USED,
         SYS_DATA        = multitask ? SYS + 0x0000000000103000 : NOT_USED,
         SYS_STACK       = multitask ? SYS + 0x0000000000200000 : NOT_USED,
-        SYS_HEAP        = multitask ? SYS + 0x0000000000400000 : NOT_USED,
-        SYS_HIGH        = multitask ? SYS + 0x00000000007fffff : NOT_USED
+        SYS_HEAP        = multitask ? SYS + 0x0000000000600000 : NOT_USED,
+        SYS_HIGH        = multitask ?       0xffffffffffffffff : NOT_USED
     };
 };
 

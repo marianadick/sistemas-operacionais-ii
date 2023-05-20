@@ -94,8 +94,12 @@ public:
     using IC_Common::Interrupt_Id;
     using IC_Common::Interrupt_Handler;
 
+    // TO-DO P4: int_syscall 
     enum {
-        INT_SYS_TIMER   = EXCS + (multitask ? IRQ_SUP_TIMER : IRQ_MAC_TIMER)
+        // HARD_INT        = CPU::EXCEPTIONS,
+        INT_SYS_TIMER   = EXCS + (multitask ? IRQ_SUP_TIMER : IRQ_MAC_TIMER),
+        // INT_RESCHEDULER = HARD_INT + (sup ? IRQ_SUP_SOFT : IRQ_MAC_SOFT),  // an IPI is mapped to the machine with mcause set to IRQ_MAC_SOFT
+        INT_SYSCALL     = CPU::EXC_ENVS
     };
 
 public:

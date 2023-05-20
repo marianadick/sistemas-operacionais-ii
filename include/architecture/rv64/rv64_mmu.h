@@ -44,10 +44,11 @@ public:
             MIO  = 1 << 9, // I/O (reserved for use by supervisor RSW)
 
             IAD  = (Traits<Build>::MODEL == Traits<Build>::SiFive_U) ? A | D : 0, // SiFive-U RV64 MMU can´t handle A and D and requires it to be set
-
-            APP  = (V | R | W | X | U | IAD),
-            APPC = (V | R |     X | U | IAD),
-            APPD = (V | R | W | X | U | IAD),
+            
+            // TO-DO P4: Resolve problema de page fault, por que?
+            APP  = (V | R | W | X | IAD),
+            APPC = (V | R |     X | IAD),
+            APPD = (V | R | W | X | IAD),
             SYS  = (V | R | W | X | IAD),
             IO   = (SYS | MIO),
             DMA  = (SYS | CT),
