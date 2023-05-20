@@ -87,6 +87,7 @@ private:
     void say_hi();
 
     void setup_m2s();
+    void setup_init_pt();
     void setup_sys_pt();
     void setup_app_pt();
     void setup_sys_pd();
@@ -135,12 +136,13 @@ Setup::Setup()
         say_hi();
 
         // Configure the memory model defined above
+        setup_init_pt();
         setup_sys_pt();
         setup_app_pt();
         setup_sys_pd();
 
         // Relocate the machine to supervisor interrupt forwarder
-        // setup_m2s();
+        setup_m2s();
 
         // Enable paging
         enable_paging();
@@ -263,7 +265,6 @@ void Setup::build_lm()
         }
         if(Traits<System>::multiheap) { // Application heap in data segment
             si->lm.app_data_size = MMU::align_page(si->lm.app_data_size);
-            kout << "teste" << si->lm.app_data_size << endl;
             si->lm.app_stack = si->lm.app_data + si->lm.app_data_size;
             si->lm.app_data_size += MMU::align_page(Traits<Application>::STACK_SIZE);
             si->lm.app_heap = si->lm.app_data + si->lm.app_data_size;
@@ -323,6 +324,12 @@ void Setup::build_pmm()
 
     // Page tables to map the first APPLICATION data segment (which contains heap, stack and extra)
     si->pmm.app_data_pt = MMU::calloc(MMU::pts(MMU::pages(si->lm.app_data_size)));
+
+    // INIT page tables
+    si->pmm.init_pt = MMU::calloc(MMU::pts(MMU::pages(si->lm.ini_code_size)));
+
+    // INIT code segment
+    si->pmm.init_code = MMU::calloc(MMU::pages(si->lm.ini_code_size));
 
     // System Info
     si->pmm.sys_info = (SYS_INFO != Traits<Machine>::NOT_USED) ? MMU::calloc() : Phy_Addr(false);
@@ -397,6 +404,18 @@ void Setup::say_hi()
     kout << endl;
 }
 
+// TO-DO P4: add init
+void Setup::setup_init_pt()
+{
+    // Get the physical address for the SYSTEM Page Table, which was allocated with calloc()
+    Page_Table *init_pt = reinterpret_cast<Page_Table *>(si->pmm.init_pt);
+
+    // INIT code
+    init_pt->remap(si->pmm.init_code, MMU::pti(si->lm.ini_code), MMU::pti(si->lm.ini_code) + MMU::pages(si->lm.ini_code_size), Flags::SYS);
+
+    // INIT data
+    init_pt->remap(si->pmm.init_data, MMU::pti(si->lm.ini_data), MMU::pti(si->lm.ini_data) + MMU::pages(si->lm.ini_data_size), Flags::SYS);
+}
 
 void Setup::setup_sys_pt()
 {
@@ -421,19 +440,12 @@ void Setup::setup_sys_pt()
     // System Page Directory
     sys_pt->remap(si->pmm.sys_pd, MMU::pti(SYS, SYS_PD), MMU::pti(SYS, SYS_PD) + 1, Flags::SYS);
 
-    if(multitask) {
     // SYSTEM code
-        sys_pt->remap(si->pmm.sys_code, MMU::pti(SYS, SYS_CODE), MMU::pti(SYS, SYS_CODE) + MMU::pages(si->lm.sys_code_size), Flags::SYS);
+    sys_pt->remap(si->pmm.sys_code, MMU::pti(SYS, SYS_CODE), MMU::pti(SYS, SYS_CODE) + MMU::pages(si->lm.sys_code_size), Flags::SYS);
 
-        // SYSTEM data
-        sys_pt->remap(si->pmm.sys_data, MMU::pti(SYS, SYS_DATA), MMU::pti(SYS, SYS_DATA) + MMU::pages(si->lm.sys_data_size), Flags::SYS);
-    } else {
-        // SYSTEM code
-        sys_pt->remap(si->pmm.sys_code, MMU::pti(SYS, SYS_CODE), MMU::pti(SYS, SYS_CODE) + MMU::pages(si->lm.sys_code_size), Flags::APP);
-
-        // SYSTEM data
-        sys_pt->remap(si->pmm.sys_data, MMU::pti(SYS, SYS_DATA), MMU::pti(SYS, SYS_DATA) + MMU::pages(si->lm.sys_data_size), Flags::APP);
-    }
+    // SYSTEM data
+    sys_pt->remap(si->pmm.sys_data, MMU::pti(SYS, SYS_DATA), MMU::pti(SYS, SYS_DATA) + MMU::pages(si->lm.sys_data_size), Flags::SYS);
+    
     // SYSTEM stack (used only during init and for the ukernel model)
     sys_pt->remap(si->pmm.sys_stack, MMU::pti(SYS, SYS_STACK), MMU::pti(SYS, SYS_STACK) + MMU::pages(si->lm.sys_stack_size), Flags::SYS);
 
@@ -458,10 +470,10 @@ void Setup::setup_app_pt()
     // APPLICATION code
     // Since load_parts() will load the code into memory, the code segment can't be marked R/O yet
     // The correct flags (APPC and APPD) will be configured after the execution of load_parts(), by adjust_perms()
-    app_code_pt->remap(si->pmm.app_code, MMU::pti(si->lm.app_code), MMU::pti(si->lm.app_code) + MMU::pages(si->lm.app_code_size), Flags::SYS);
+    app_code_pt->remap(si->pmm.app_code, MMU::pti(si->lm.app_code), MMU::pti(si->lm.app_code) + MMU::pages(si->lm.app_code_size), Flags::APP);
 
     // APPLICATION data (contains stack, heap and extra)
-    app_data_pt->remap(si->pmm.app_data, MMU::pti(si->lm.app_data), MMU::pti(si->lm.app_data) + MMU::pages(si->lm.app_data_size), Flags::SYS);
+    app_data_pt->remap(si->pmm.app_data, MMU::pti(si->lm.app_data), MMU::pti(si->lm.app_data) + MMU::pages(si->lm.app_data_size), Flags::APP);
 
     for(unsigned int i = 0; i < MMU::pts(MMU::pages(si->lm.app_code_size)); i++)
         db<Setup>(INF) << "APPC_PT[" << &app_code_pt[i] << "]=" << app_code_pt[i] << endl;
@@ -534,6 +546,12 @@ void Setup::setup_sys_pd()
     // Attach devices' memory at Memory_Map::IO
     if(dir.attach(io, IO) != IO)
         db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach memory-mapped I/O at " << reinterpret_cast<void *>(IO) << "!" << endl;
+
+    // TO-DO P4: ADD INIT
+    // Attach INIT
+    Chunk init(si->pmm.init_pt, MMU::pti(si->lm.ini_code), MMU::pti(si->lm.ini_code) + MMU::pages(si->lm.ini_code_size) + MMU::pages(si->lm.ini_data_size), Flags::SYS);
+    if (dir.attach(init, INIT) != INIT)
+        db<Setup>(ERR) << "Setup::setup_sys_pd: cannot attach INIT at " << reinterpret_cast<void *>(INIT) << "!" << endl;
 
     // Attach the OS (i.e. sys_pt)
     Chunk os(si->pmm.sys_pt, MMU::pti(SYS), MMU::pti(SYS) + MMU::pages(SYS_HEAP - SYS), Flags::SYS);
@@ -753,7 +771,7 @@ void _entry() // machine mode
 
     if(Traits<System>::multitask) {
         // ATTENTION P3: I believe we don't need this since there's no timer interruption to be forwarded anymore
-        // CLINT::mtvec(CLINT::DIRECT, Memory_Map::INT_M2S); // setup a machine mode interrupt handler to forward timer interrupts (which cannot be delegated via mideleg)
+        CLINT::mtvec(CLINT::DIRECT, Memory_Map::INT_M2S); // setup a machine mode interrupt handler to forward timer interrupts (which cannot be delegated via mideleg)
         CPU::mideleg(0xffff);                           // delegate all possible interrupts to supervisor mode (MTI can't be delegated https://groups.google.com/a/groups.riscv.org/g/sw-dev/c/A5XmyE5FE_0/m/TEnvZ0g4BgAJ)
         CPU::medeleg(0xffff);                           // delegate all exceptions to supervisor mode
         CPU::mstatuss(CPU::MPP_S);                      // prepare jump into supervisor mode at mret
