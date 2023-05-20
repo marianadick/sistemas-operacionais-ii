@@ -12,8 +12,7 @@ class Machine_Common;
 template<> struct Traits<Machine_Common>: public Traits<Build>
 {
 protected:
-    // This can be set to false in order to run flat maping
-    static const bool multitask = true;
+    static const bool library = (Traits<Build>::MODE == Traits<Build>::LIBRARY);
 };
 
 template<> struct Traits<Machine>: public Traits<Machine_Common>
@@ -36,21 +35,21 @@ public:
 
                              // SYS - 1
     static const unsigned long BOOT              = NOT_USED;
-    static const unsigned long SETUP             = multitask ? RAM_BASE : NOT_USED;        // RAM_BASE (will be part of the free memory at INIT, using a logical address identical to physical eliminate SETUP relocation)
+    static const unsigned long SETUP             = library ? NOT_USED : RAM_BASE;        // RAM_BASE (will be part of the free memory at INIT, using a logical address identical to physical eliminate SETUP relocation)
     static const unsigned long IMAGE             = 0x0000000080100000;                           // RAM_BASE + 1 MB (will be part of the free memory at INIT, defines the maximum image size; if larger than 3 MB then adjust at SETUP)
 
     // Logical Memory
-    static const unsigned long APP_LOW           = multitask ? 0x0000000080400000 : RAM_BASE ;      // 2 GB + 4 MB
+    static const unsigned long APP_LOW           = library ? RAM_BASE : 0x0000000080400000 ;      // 2 GB + 4 MB
     static const unsigned long APP_HIGH          = 0xffffffffff7fffff;                           // SYS - 1
 
     static const unsigned long APP_CODE          = APP_LOW;
     static const unsigned long APP_DATA          = APP_CODE + 4 * 1024 * 1024;
 
-    
-    static const unsigned long INIT              = 0xffffffff80080000;      // RAM_BASE + 512 KB (will be part of the free memory at INIT)
-    static const unsigned long PHY_MEM           = multitask ? 0x0000000020000000 : RAM_BASE;      // 512 MB (max 1536 MB of RAM)
+    //TO-DO P4: ARRUMAR INIT E SYS
+    static const unsigned long INIT              = library? NOT_USED : 0xfffffff7fffa0000;      // RAM_BASE + 512 KB (will be part of the free memory at INIT)
+    static const unsigned long PHY_MEM           = library ? RAM_BASE : 0x0000000020000000;      // 512 MB (max 1536 MB of RAM)
     static const unsigned long IO                = 0x0000000000000000;                           // 0 (max 512 MB of IO = MIO_TOP - MIO_BASE)
-    static const unsigned long SYS               = 0xffffffffff800000;                           // 4 GB - 8 MB
+    static const unsigned long SYS               = 0xfffffff800000000;                           // 4 GB - 8 MB
 
     // Default Sizes and Quantities
     static const unsigned int MAX_THREADS       = 16;
@@ -74,7 +73,6 @@ template <> struct Traits<Timer>: public Traits<Machine_Common>
     // choice must respect the scheduler time-slice, i. e., it must be higher
     // than the scheduler invocation frequency.
     static const int FREQUENCY = 1000; // Hz
-    static const bool enabled = false;
 };
 
 template <> struct Traits<UART>: public Traits<Machine_Common>
