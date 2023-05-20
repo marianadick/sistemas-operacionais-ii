@@ -13,27 +13,36 @@ void Thread::init()
 {
     db<Init, Thread>(TRC) << "Thread::init()" << endl;
 
-    Criterion::init();
-
-#ifdef __library__
-
-    typedef int (Main)();
-
-    // If EPOS is a library, then adjust the application entry point to __epos_app_entry, which will directly call main().
-    // In this case, _init will have already been called, before Init_Application to construct MAIN's global objects.
-    Main * main = reinterpret_cast<Main *>(__epos_app_entry);
-
-    new (SYSTEM) Thread(Thread::Configuration(Thread::RUNNING, Thread::MAIN), main);
-
-#else
-
     typedef int (Main)(int argc, char * argv[]);
 
     System_Info * si = System::info();
+    Main * main;
 
-    Main * main = reinterpret_cast<Main *>(si->lm.app_entry);
+    if(Traits<System>::multitask)
+        main = reinterpret_cast<Main *>(si->lm.app_entry);
+    else
+        // If EPOS is a library, then adjust the application entry point to __epos_app_entry, which will directly call main().
+        // In this case, _init will have already been called, before Init_Application to construct MAIN's global objects.
+        main = reinterpret_cast<Main *>(__epos_app_entry);
 
-#endif
+    Criterion::init();
+
+    if(Traits<System>::multitask) {
+        new (SYSTEM) Task(new (SYSTEM) Address_Space(MMU::current()),
+                          new (SYSTEM) Segment(Log_Addr(si->lm.app_code), si->lm.app_code_size, Segment::Flags::APP),
+                          new (SYSTEM) Segment(Log_Addr(si->lm.app_data), si->lm.app_data_size, Segment::Flags::APP),
+                          Log_Addr(Memory_Map::APP_CODE), Log_Addr(Memory_Map::APP_DATA),
+                          main,
+                          static_cast<int>(si->lm.app_extra_size), reinterpret_cast<char **>(si->lm.app_extra));
+
+        if(si->lm.has_ext)
+            db<Init>(INF) << "Thread::init: additional data from mkbi at "  << reinterpret_cast<void *>(si->lm.app_extra) << ":" << si->lm.app_extra_size << endl;
+    } else {
+        // If EPOS is a library, then adjust the application entry point to __epos_app_entry,
+        // which will directly call main(). In this case, _init will already have been called,
+        // before Init_Application to construct MAIN's global objects.
+        new (SYSTEM) Thread(Thread::Configuration(Thread::RUNNING, Thread::MAIN), reinterpret_cast<int (*)()>(main));
+    }
 
     // Idle thread creation does not cause rescheduling (see Thread::constructor_epilogue)
     new (SYSTEM) Thread(Thread::Configuration(Thread::READY, Thread::IDLE), &Thread::idle);

@@ -232,8 +232,10 @@ public:
 
     static void fpu_save();
     static void fpu_restore();
-
     static void switch_context(Context ** o, Context * n) __attribute__ ((naked));
+
+    static void syscall(void * message);
+    static void syscalled(unsigned int int_id);
 
     template<typename T>
     static T tsl(volatile T & lock) {
@@ -329,6 +331,10 @@ public:
         init_stack_helper(&ctx->_x10, an ...); // x10 is a0
         return ctx;
     }
+
+    // In RISC-V, the main thread of each task gets parameters over registers, not the stack, and they are initialized by init_stack.
+    template<typename ... Tn>
+    static Log_Addr init_user_stack(Log_Addr sp, void (* exit)(), Tn ... an) { return sp; }
 
 public:
     // RISC-V 64 specifics
