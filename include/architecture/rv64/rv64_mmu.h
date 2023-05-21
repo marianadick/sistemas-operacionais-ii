@@ -244,7 +244,7 @@ public:
 
         Directory(Page_Directory * pd): _free(false), _pd(pd) {}
 
-        ~Directory() { if(_free) free(_pd); }
+        ~Directory() { if(_free) free(_pd, sizeof(Page_Directory) / sizeof(Page)); }
 
         Phy_Addr pd() const { return _pd; }
 
@@ -267,58 +267,88 @@ public:
             return addr;
         }
 
-        void detach(const Chunk & chunk) {
-            unsigned int i = 0;
-            unsigned int j = 0;
-            const Page_Table * pt = chunk.pt();
+        
+        void detach(const Chunk &chunk)
+        {
+            const Page_Table *pt = chunk.pt();
             unsigned int pts = chunk.pts();
-            for(; i < PD_ENTRIES; i++) {
-                Attacher * at = pde2phy(_pd->log()[i]);
-                if(at) {
+
+            for (unsigned int i = 0; i < PD_ENTRIES && pts > 0; i++)
+            {
+                Attacher *at = pde2phy(_pd->log()[i]);
+
+                if (at)
+                {
                     bool empty = true;
-                    for(j = 0; j < AT_ENTRIES; j++) {
-                        db<MMU>(INF) << "at=" << at << endl;
-                        db<MMU>(INF) << "at->log()=" << at->log() << endl;
-                        db<MMU>(INF) << "ate2phy(at->log()[j])=" << ate2phy(at->log()[j]) << endl;
-                        db<MMU>(INF) << "pt=" << pt << endl;
-                        if(ate2phy(at->log()[j]) == pt) {
+
+                    for (unsigned int j = 0; j < AT_ENTRIES && pts > 0; j++)
+                    {
+                        if (unflag(ate2phy(at->log()[j])) == unflag(pt))
+                        {
                             at->log()[j] = 0;
                             pt++;
                             pts--;
-                        } else if (at->log()[j])
+                        }
+                        else if (at->log()[j])
+                        {
                             empty = false;
-                    }
-                    if(empty)
-                        _pd->log()[i] = 0;
-                    if(!pts) break;
-                }
-            }
-            if((i == PD_ENTRIES) && (j == AT_ENTRIES))
-                db<MMU>(WRN) << "MMU::Directory::detach(pt=" << chunk.pt() << ") failed!" << endl;
-            else
-                flush_tlb();
-        }
-
-        void detach(const Chunk & chunk, Log_Addr addr) {
-            unsigned int i = pdi(addr);
-            unsigned int j = ati(addr);
-            for(; i < pds(ats(chunk.pts())); i++) {
-                Attacher * at = _pd->log()[i];
-                if(at) {
-                    unsigned int ates = 0;
-                    for(j = 0; j < AT_ENTRIES; j++) {
-                        if(unflag(ate2phy((*at)[i])) == unflag(chunk.pt())) {
-                            at->log()[j & (AT_ENTRIES - 1)] = 0;
-                            ates++;
-                        } else {
-                            db<MMU>(WRN) << "MMU::Directory::detach(pt=" << chunk.pt() << ",addr=" << addr << ") failed!" << endl;
-                            return;
                         }
                     }
-                    if(ates == AT_ENTRIES)
+
+                    if (empty)
+                    {
                         _pd->log()[i] = 0;
+                        free(at);
+                    }
                 }
             }
+
+            if (pts == 0)
+            {
+                flush_tlb();
+            }
+            else
+            {
+                db<MMU>(WRN) << "MMU::Directory::detach(pt=" << chunk.pt() << ") failed!" << endl;
+            }
+        }
+
+        
+        void detach(const Chunk &chunk, Log_Addr addr) {
+            const Page_Table *pt = chunk.pt();
+            unsigned int pd_start = pdi(addr);
+            unsigned int pd_end = pd_start + ats(chunk.pts());
+
+            // Iterate over the relevant page directory entries
+            for (unsigned int i = pd_start; i < pd_end; i++) {
+                Attacher *at = pde2phy(_pd->log()[i]);
+
+                // Check if the Attacher exists
+                if (at) {
+                    bool empty = true;
+
+                    // Iterate over the Attacher's page table entries
+                    for (unsigned int j = 0; j < AT_ENTRIES; j++) {
+                        // Check if the page table entry is valid and points to the same page table as pt
+                        if (at->log()[j] && unflag(ate2phy(at->log()[j])) == unflag(pt)) {
+                            // Clear the page table entry
+                            at->log()[j] = 0;
+                        }
+
+                        // Check if the Attacher is still non-empty
+                        if (at->log()[j]) {
+                            empty = false;
+                        }
+                    }
+
+                    // Check if the Attacher is empty and remove it if so
+                    if (empty) {
+                        _pd->log()[i] = 0;
+                        free(at);
+                    }
+                }
+            }
+
             flush_tlb();
         }
 
@@ -330,29 +360,74 @@ public:
         }
 
     private:
-        bool attachable(Log_Addr addr, const Page_Table * pt, unsigned int pts, Page_Flags flags) {
-            for(unsigned int i = pdi(addr); i < pdi(addr) + ats(pts); i++) {
-                Attacher * at = pde2phy(_pd->log()[i]);
-                if(!at)
+        bool attachable(Log_Addr addr, const Page_Table *pt, unsigned int pts, Page_Flags flags) {
+            unsigned int remaining_pts = pts;
+
+            for (unsigned int i = pdi(addr); i < pdi(addr) + ats(pts); i++) {
+                Attacher *at = pde2phy(_pd->log()[i]);
+
+                if (!at)
                     continue;
-                else
-                    for(unsigned int j = ati(addr); j < ati(addr) + pts; j++, pt++)
-                        if(at->log()[j & (AT_ENTRIES - 1)])
+                else {
+                    unsigned int start_idx = (i == pdi(addr)) ? ati(addr) : 0;
+                    unsigned int end_idx = (i == pdi(addr) + ats(pts) - 1) ? ati(addr) + pts : AT_ENTRIES;
+
+                    for (unsigned int j = start_idx; j < end_idx; j++, pt++) {
+                        if (at->log()[j & (AT_ENTRIES - 1)]) {
                             return false;
+                        }
+                        remaining_pts--;
+
+                        if (remaining_pts == 0)
+                            break;
+                    }
+                }
+
+                if (remaining_pts == 0)
+                    break;
             }
+
             return true;
         }
 
+  
         bool attach(Log_Addr addr, const Page_Table * pt, unsigned int pts, Page_Flags flags) {
-            for(unsigned int i = pdi(addr); i < pdi(addr) + ats(pts); i++) {
-                Attacher * at = pde2phy(_pd->log()[i]);
-                if(!at) {
+            // Print debug information about the attachment operation
+            db<Setup>(TRC) << "MMU::Directory::attach(pt=" << pt << ",pts=" << pts << ",flags=" << flags << ",addr=" << addr << ")" << endl;
+            db<Setup>(TRC) << "MMU::Directory::attach(pd=" << _pd << ")" << endl;
+            db<Setup>(TRC) << "pdi: " << pdi(addr) << "pdi(addr) + ats(pts):    " << pdi(addr) + ats(pts) << endl;
+
+            // Calculate the number of Attachers required based on pts
+            unsigned int num_attachers = (ats(pts) + (AT_ENTRIES - 1)) / AT_ENTRIES;
+
+            // Iterate over the required number of Attachers
+            for (unsigned int attacher_idx = 0; attacher_idx < num_attachers; attacher_idx++) {
+                // Calculate the current Attacher index
+                unsigned int attacher_index = pdi(addr) + attacher_idx;
+
+                // Get the physical address of the Attacher associated with the current PDE
+                Attacher* at = pde2phy(_pd->log()[attacher_index]);
+
+                // If Attacher doesn't exist, allocate a new one and update the PDE
+                if (!at) {
                     at = calloc(1, WHITE);
-                    _pd->log()[i] = phy2pde(Phy_Addr(at));
+                    _pd->log()[attacher_index] = phy2pde(Phy_Addr(at));
                 }
-                for(unsigned int j = ati(addr); j < ati(addr) + pts; j++, pt++)
-                    at->log()[j & (AT_ENTRIES - 1)] = phy2ate(Phy_Addr(pt));
+
+                // Calculate the starting index within the current Attacher's page table
+                unsigned int page_table_start = (attacher_idx == 0) ? ati(addr) : 0;
+
+                // Calculate the ending index within the current Attacher's page table
+                unsigned int page_table_end = (attacher_idx == num_attachers - 1) ? ati(addr) + pts : AT_ENTRIES;
+
+                // Iterate over the Page Table Entries (PTEs) within the current Attacher
+                for (unsigned int j = page_table_start; j < page_table_end; j++, pt++) {
+                    // Map the physical address of the Page Table to the current PTE in the Attacher
+                    at->log()[j] = phy2ate(Phy_Addr(pt));
+                }
             }
+
+            // Return true to indicate successful attachment
             return true;
         }
 
