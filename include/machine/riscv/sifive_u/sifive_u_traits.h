@@ -19,37 +19,41 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
 public:
     // Value to be used for undefined addresses
-    static const unsigned long NOT_USED          = 0xffffffffffffffff;
+    static const unsigned long NOT_USED          = 0xffffffffffffffffUL;
 
     // Clocks
-    static const unsigned int CLOCK             = 1000000000;                            // CORECLK
-    static const unsigned int HFCLK             =   33330000;                            // FU540-C000 generates all internal clocks from 33.33 MHz hfclk driven from an external oscillator (HFCLKIN) or crystal (HFOSCIN) input, selected by input HFXSEL.
-    static const unsigned int RTCCLK            =    1000000;                            // The CPU real time clock (rtcclk) runs at 1 MHz and is driven from input pin RTCCLKIN. This should be connected to an external oscillator.
-    static const unsigned int TLCLK             = CLOCK / 2;                            // L2 cache and peripherals such as UART, SPI, I2C, and PWM operate in a single clock domain (tlclk) running at coreclk/2 rate. There is a low-latency 2:1 crossing between coreclk and tlclk domains.
+    static const unsigned int CLOCK             = 1000000000;    // CORECLK
+    static const unsigned int HFCLK             = 33330000;      // FU540-C000 generates all internal clocks from 33.33 MHz hfclk driven from an external oscillator (HFCLKIN) or crystal (HFOSCIN) input, selected by input HFXSEL.
+    static const unsigned int RTCCLK            = 1000000;       // The CPU real-time clock (rtcclk) runs at 1 MHz and is driven from input pin RTCCLKIN. This should be connected to an external oscillator.
+    static const unsigned int TLCLK             = CLOCK / 2;     // L2 cache and peripherals such as UART, SPI, I2C, and PWM operate in a single clock domain (tlclk) running at coreclk/2 rate. There is a low-latency 2:1 crossing between coreclk and tlclk domains.
 
     // Physical Memory
-    static const unsigned long RAM_BASE          = 0x0000000080000000;                           // 2 GB
-    static const unsigned long RAM_TOP           = 0x0000000087ffffff;                           // 2 GB + 128 MB (max 1536 MB of RAM => RAM + MIO < 2 G)
+    static const unsigned long RAM_BASE          = 0x0000000080000000;  // 2 GB (aligned with the page size)
+    //TODO -> CHANGE TO 2 GB + 4 GB - 1
+    static const unsigned long RAM_TOP           = 0x0000000087ffffff;  // 2.125 GB (aligned with the page size)
     static const unsigned long MIO_BASE          = 0x0000000000000000;
-    static const unsigned long MIO_TOP           = 0x000000001fffffff;                           // 512 MB (max 512 MB of MIO => RAM + MIO < 2 G)
+    static const unsigned long MIO_TOP           = 0x000000001fffffff;  // 512 MB (max 512 MB of MIO => RAM + MIO < 2 GB)
 
-                             // SYS - 1
+    // Physical Memory at Boot
     static const unsigned long BOOT              = NOT_USED;
-    static const unsigned long SETUP             = library ? NOT_USED : RAM_BASE;        // RAM_BASE (will be part of the free memory at INIT, using a logical address identical to physical eliminate SETUP relocation)
-    static const unsigned long IMAGE             = 0x0000000080100000;                           // RAM_BASE + 1 MB (will be part of the free memory at INIT, defines the maximum image size; if larger than 3 MB then adjust at SETUP)
+    static const unsigned long SETUP             = library ? NOT_USED : RAM_BASE;  // RAM_BASE (will be part of the free memory at INIT, using a logical address identical to physical eliminate SETUP relocation)
+    static const unsigned long IMAGE             = library ? NOT_USED : 0x0000000080100000;  // RAM_BASE + 1 MB (will be part of the free memory at INIT, defines the maximum image size; if larger than 3 MB then adjust at SETUP)
 
     // Logical Memory
-    static const unsigned long APP_LOW           = library ? RAM_BASE : 0x0000000080400000 ;      // 2 GB + 4 MB
-    static const unsigned long APP_HIGH          = 0xffffffffff7fffff;                           // SYS - 1
 
+
+
+    static const unsigned long IO                = 0x0000000000000000;
+    static const unsigned long PHY_MEM           = library ? RAM_BASE : 0x0000000020000000;  
+    
+    static const unsigned long APP_LOW           = library ? RAM_BASE : 0x0000000080400000;  
     static const unsigned long APP_CODE          = APP_LOW;
     static const unsigned long APP_DATA          = APP_CODE + 4 * 1024 * 1024;
+    static const unsigned long APP_HIGH          = 0xFFFFFFFAFF000000;
 
-    //TO-DO P4: ARRUMAR INIT E SYS
-    static const unsigned long INIT              = library? NOT_USED : 0xfffffff7fffa0000;      // RAM_BASE + 512 KB (will be part of the free memory at INIT)
-    static const unsigned long PHY_MEM           = library ? RAM_BASE : 0x0000000020000000;      // 512 MB (max 1536 MB of RAM)
-    static const unsigned long IO                = 0x0000000000000000;                           // 0 (max 512 MB of IO = MIO_TOP - MIO_BASE)
-    static const unsigned long SYS               = 0xfffffff800000000;                           // 4 GB - 8 MB
+    static const unsigned long INIT              = library ? NOT_USED :  APP_HIGH + 4 * 1024 * 1024;
+    
+    static const unsigned long SYS               = INIT + 40 * 1024 * 1024; 
 
     // Default Sizes and Quantities
     static const unsigned int MAX_THREADS       = 16;
