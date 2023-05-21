@@ -34,6 +34,7 @@ if(Traits<IC>::hysterically_debugged) {
     CPU::iret();
 }
 
+// ATT P4: Based on the 21/1 this should work
 void IC::dispatch()
 {
     Interrupt_Id id = int_id();
@@ -41,9 +42,21 @@ void IC::dispatch()
     if((id != INT_SYS_TIMER) || Traits<IC>::hysterically_debugged)
         db<IC>(TRC) << "IC::dispatch(i=" << id << ")" << endl;
 
-    // MIP.MTI is a direct logic on (MTIME == MTIMECMP) and reseting the Timer seems to be the only way to clear it
-    if(id == INT_SYS_TIMER)
-        Timer::reset();
+    if(multitask) {
+        // if(id == INT_RESCHEDULER)
+        //     CPU::sipc(CPU::SSI);
+
+        if(id == INT_SYS_TIMER)
+            CPU::siec(CPU::STI);
+    } else {
+        // // IPIs must be acknowledged before calling the ISR, because in RISC-V, MIP set bits will keep on triggering interrupts until they are cleared
+        // if(id == INT_RESCHEDULER)
+        //     IC::ipi_eoi(id);
+
+        // MIP.MTI is a direct logic on (MTIME == MTIMECMP) and reseting the Timer seems to be the only way to clear it
+        if(id == INT_SYS_TIMER)
+            Timer::reset();
+    }
 
     _int_vector[id](id);
 
