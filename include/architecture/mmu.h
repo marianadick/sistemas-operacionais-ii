@@ -90,9 +90,9 @@ public:
 
 public:
     // Functions to calculate quantities
-    constexpr static unsigned long pds(unsigned long ats) { return 1; }
-    constexpr static unsigned long ats(unsigned long pts) { return AT_BITS ? (pts + AT_ENTRIES - 1) / AT_ENTRIES : 0; }
-    constexpr static unsigned long pts(unsigned long pages) { return PT_BITS ? (pages + PT_ENTRIES - 1) / PT_ENTRIES : 0; }
+    constexpr static unsigned int pds(unsigned int ats) { return 1; }
+    constexpr static unsigned int ats(unsigned int pts) { return AT_BITS ? (pts + AT_ENTRIES - 1) / AT_ENTRIES : 0; }
+    constexpr static unsigned int pts(unsigned int pages) { return PT_BITS ? (pages + PT_ENTRIES - 1) / PT_ENTRIES : 0; }
     constexpr static unsigned long pages(unsigned long bytes) { return (bytes + sizeof(Page) - 1) / sizeof(Page); }
 
     // Functions to handle physical addresses
