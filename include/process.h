@@ -200,21 +200,21 @@ public:
         // Copying segments to the new task
         Log_Addr dst_code = current()->address_space()->attach(_cs);
         Log_Addr dst_data = current()->address_space()->attach(_ds);
-        memcpy(dst_code, src_code, this->code_segment()->size());
-        memcpy(dst_data, src_data, this->data_segment()->size());
+        memcpy(dst_code, src_code, code_segment()->size());
+        memcpy(dst_data, src_data, data_segment()->size());
 
         // Detaching the segments, so each task has it's own segments
-        current()->address_space()->detach(this->code_segment());
-        current()->address_space()->detach(this->data_segment());
+        current()->address_space()->detach(code_segment());
+        current()->address_space()->detach(data_segment());
 
         // Mapping segments
-        this->_code = this->_as->attach(this->_cs);
-        this->_data = this->_as->attach(this->_ds);
+        _code = _as->attach(_cs);
+        _data = _as->attach(_ds);
 
         db<Task>(TRC) << "Task(as=" << _as << ",cs=" << _cs << ",ds=" << _ds << ",entry=" << _entry << ",code=" << _code << ",data=" << _data << ") => " << this << endl;
 
         // Creating task's main thread
-        this->_main = new (SYSTEM) Thread(Thread::Configuration(Thread::READY, Thread::MAIN, this), static_cast<int (*)(Tn...)>(_entry), an...);
+        _main = new (SYSTEM) Thread(Thread::Configuration(Thread::READY, Thread::MAIN, this), static_cast<int (*)(Tn...)>(_entry), an...);
     }
 
 
