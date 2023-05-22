@@ -184,9 +184,39 @@ public:
         _main = new (SYSTEM) Thread(Thread::Configuration(conf.state, conf.criterion, this, 0), entry, an ...);
     }
     
+    // TO-DO P4
     template<typename ... Tn>
     Task(Task * task = _current, int (* entry)(Tn ...) = 0, Tn ... an) { // fork-like constructor
+        // ALlocating task resources
+        _as = new (SYSTEM) Address_Space;
+        _cs = new (SYSTEM) Segment(current()->code_segment()->size(), Segment::Flags::APP);
+        _ds = new (SYSTEM) Segment(current()->data_segment()->size(), Segment::Flags::APP);
+        _entry = entry ? entry : static_cast<int (*)(Tn...)>(task->entry());
+
+        // Saving the data and code address
+        Log_Addr src_data = current()->data();
+        Log_Addr src_code = current()->code();
+
+        // Copying segments to the new task
+        Log_Addr dst_code = current()->address_space()->attach(_cs);
+        Log_Addr dst_data = current()->address_space()->attach(_ds);
+        memcpy(dst_code, src_code, this->code_segment()->size());
+        memcpy(dst_data, src_data, this->data_segment()->size());
+
+        // Detaching the segments, so each task has it's own segments
+        current()->address_space()->detach(this->code_segment());
+        current()->address_space()->detach(this->data_segment());
+
+        // Mapping segments
+        this->_code = this->_as->attach(this->_cs);
+        this->_data = this->_as->attach(this->_ds);
+
+        db<Task>(TRC) << "Task(as=" << _as << ",cs=" << _cs << ",ds=" << _ds << ",entry=" << _entry << ",code=" << _code << ",data=" << _data << ") => " << this << endl;
+
+        // Creating task's main thread
+        this->_main = new (SYSTEM) Thread(Thread::Configuration(Thread::READY, Thread::MAIN, this), static_cast<int (*)(Tn...)>(_entry), an...);
     }
+
 
     ~Task();
 
