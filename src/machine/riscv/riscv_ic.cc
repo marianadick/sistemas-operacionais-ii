@@ -24,9 +24,9 @@ void IC::entry()
     // Entry-point for the dummy contexts used by the first dispatching of newly created threads
     ASM("       .global _int_leave              \n"
         "_int_leave:                            \n");
-if(Traits<IC>::hysterically_debugged) {
-    ASM("       jalr    %0                      \n" : : "r"(print_context));
-}
+    if(Traits<IC>::hysterically_debugged) {
+        ASM("       jalr    %0                      \n" : : "r"(print_context));
+    }
 
     // Restore context
     ASM("1:                                     \n");
@@ -34,28 +34,25 @@ if(Traits<IC>::hysterically_debugged) {
     CPU::iret();
 }
 
-// ATT P4: Based on the 21/1 this should work
 void IC::dispatch()
 {
     Interrupt_Id id = int_id();
 
-    if((id != INT_SYS_TIMER) || Traits<IC>::hysterically_debugged)
-        db<IC>(TRC) << "IC::dispatch(i=" << id << ")" << endl;
+    //if((id != INT_SYS_TIMER) || Traits<IC>::hysterically_debugged)
+        //db<IC>(TRC) << "IC::dispatch(i=" << id << ")" << endl;
 
-    if(multitask) {
-        // if(id == INT_RESCHEDULER)
-        //     CPU::sipc(CPU::SSI);
-
-        if(id == INT_SYS_TIMER)
+    // // MIP.MTI is a direct logic on (MTIME == MTIMECMP) and reseting the Timer seems to be the only way to clear it
+    // if(id == INT_SYS_TIMER)
+    //     Timer::reset();
+    if (multitask) {
+        //db<IC, System>(TRC) << "IC::dispatch(i=" << id << ")" << endl;
+        if (id == INT_SYS_TIMER) {
             CPU::siec(CPU::STI);
+        }
     } else {
-        // // IPIs must be acknowledged before calling the ISR, because in RISC-V, MIP set bits will keep on triggering interrupts until they are cleared
-        // if(id == INT_RESCHEDULER)
-        //     IC::ipi_eoi(id);
-
-        // MIP.MTI is a direct logic on (MTIME == MTIMECMP) and reseting the Timer seems to be the only way to clear it
-        if(id == INT_SYS_TIMER)
+        if (id == INT_SYS_TIMER) {
             Timer::reset();
+        }
     }
 
     _int_vector[id](id);
@@ -131,7 +128,8 @@ void IC::exception(Interrupt_Id id)
     if(Traits<Build>::hysterically_debugged)
         db<IC, System>(ERR) << "Exception stopped execution due to hysterically debugging!" << endl;
 
-    CPU::fr(sizeof(void *)); // tell CPU::Context::pop(true) to perform PC = PC + [4|8] on return
+    // EPOS pointers are 32 bytes long
+    CPU::fr(4); 
 }
 
 __END_SYS
