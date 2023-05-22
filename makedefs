@@ -108,8 +108,8 @@ rv64_COMP_PREFIX       := /home/mariana/Desenvolvimento/sistemas-operacionais-ii
 # rv64_COMP_PREFIX	:= /home/ubuntu/Desktop/SO2/riscv1804/riscv/bin/riscv64-unknown-linux-gnu-
 
 # TOOLCHAIN - Larissa
-#rv32_COMP_PREFIX	:= /home/larissagr/Documentos/UFSC/UFSC2023/SO2/riscv64/bin/riscv64-unknown-linux-gnu-
-#rv64_COMP_PREFIX	:= /home/larissagr/Documentos/UFSC/UFSC2023/SO2/riscv64/bin/riscv64-unknown-linux-gnu-
+rv32_COMP_PREFIX	:= /home/larissagr/Documentos/UFSC/UFSC2023/SO2/riscv64/bin/riscv64-unknown-linux-gnu-
+rv64_COMP_PREFIX	:= /home/larissagr/Documentos/UFSC/UFSC2023/SO2/riscv64/bin/riscv64-unknown-linux-gnu-
 
 
 COMP_PREFIX		= $($(ARCH)_COMP_PREFIX)

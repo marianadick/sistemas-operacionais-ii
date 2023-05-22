@@ -8,28 +8,35 @@ using namespace EPOS;
 
 OStream cout;
 
-Task * task;
 
-int func_a(void);
+
+int my_address(void);
 
 int main()
 {
-    task = new Task(task, &func_a);
 
-    task->join();
+    cout << "I am the main task" << endl;
+    Task * task0 = Task::self();
+    Address_Space * as0 = task0->address_space();
+    cout << "Main task page directory is located at " << as0->pd() << endl;
 
-    cout << endl;
+    cout << "Forking main task...." << endl;
+    Task * forked_task = new Task(task0, &my_address, 0);
+
+
+    forked_task->join();
 
     return 0;
 }
 
-int func_a(void)
+int my_address(void)
 {
-    for(int i = 100; i > 0; i--) {
-        for(int i = 0; i < 79; i++)
-            cout << "a";
-        cout << endl;
-    }
+    cout << "----------------------------" << endl;
+    cout << "I am the forked task" << endl;
+    //Task * task0 = Task::self();
+    //Address_Space * as0 = task0->address_space();
+    //cout << "Forked task got page directory from main and is located at " << as0->pd() << endl;
 
-    return 'A';
+    cout << "----------------------------" << endl;
+    return 0;
 }
