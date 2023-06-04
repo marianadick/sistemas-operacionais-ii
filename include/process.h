@@ -153,6 +153,8 @@ private:
     typedef CPU::Phy_Addr Phy_Addr;
     typedef CPU::Context Context;
     typedef Thread::Queue Queue;
+    // TODO P5 -> find the logic for those variables
+    bool _owns_cs = true, _owns_ds = true;
 
 protected:
     // This constructor is only used by Thread::init()
@@ -160,7 +162,8 @@ protected:
     Task(Address_Space * as, Segment * cs, Segment * ds, Log_Addr code, Log_Addr data, int (* entry)(Tn ...), Tn ... an)
     : _as(as), _cs(cs), _ds(ds), _code(code), _data(data), _entry(entry) {
         db<Task, Init>(TRC) << "Task(as=" << _as << ",cs=" << _cs << ",ds=" << _ds << ",code=" << _code << ",data=" << _data << ",entry=" << _entry << ") => " << this << endl;
-
+        _owns_cs = false;
+        _owns_ds = false;
         _current = this;
         activate();
         _main = new (SYSTEM) Thread(Thread::Configuration(Thread::RUNNING, Thread::MAIN, this, 0), entry, an ...);
@@ -171,7 +174,8 @@ public:
     Task(Segment * cs, Segment * ds, Log_Addr code, Log_Addr data, int (* entry)(Tn ...), Tn ... an)
     : _as (new (SYSTEM) Address_Space), _cs(cs), _ds(ds), _code(_as->attach(_cs, code)), _data(_as->attach(_ds, data)), _entry(entry) {
         db<Task>(TRC) << "Task(as=" << _as << ",cs=" << _cs << ",ds=" << _ds << ",entry=" << _entry << ",code=" << _code << ",data=" << _data << ") => " << this << endl;
-
+        _owns_cs = false;
+        _owns_ds = false;
         _main = new (SYSTEM) Thread(Thread::Configuration(Thread::READY, Thread::NORMAL, this, 0), entry, an ...);
     }
     
@@ -179,7 +183,8 @@ public:
     Task(const Thread::Configuration & conf, Segment * cs, Segment * ds, Log_Addr code, Log_Addr data, int (* entry)(Tn ...), Tn ... an)
     : _as (new (SYSTEM) Address_Space), _cs(cs), _ds(ds), _code(_as->attach(_cs, code)), _data(_as->attach(_ds, data)), _entry(entry) {
         db<Task>(TRC) << "Task(as=" << _as << ",cs=" << _cs << ",ds=" << _ds << ",entry=" << _entry << ",code=" << _code << ",data=" << _data << ") => " << this << endl;
-
+        _owns_cs = false;
+        _owns_ds = false;
         _main = new (SYSTEM) Thread(Thread::Configuration(conf.state, conf.criterion, this, 0), entry, an ...);
     }
     
@@ -237,6 +242,9 @@ public:
     int join() { return _main->join(); }
 
     static Task * volatile self() { return current(); }
+
+    bool is_owns_cs() const { return _owns_cs; }
+    bool is_owns_ds() const { return _owns_ds; }
 
 private:
     void activate() const { _current = const_cast<Task *>(this); _as->activate(); }
@@ -303,10 +311,45 @@ inline Thread::Thread(int (* entry)(Tn ...), Tn ... an)
     _context = CPU::init_stack(0, _stack + STACK_SIZE, &__exit, entry, an ...);
     constructor_epilogue(entry, STACK_SIZE);
 }
-
+// TODO P5 -> Revisar esse código (procurar nos repos do epos)
 template<typename ... Tn>
 inline Thread::Thread(const Configuration & conf, int (* entry)(Tn ...), Tn ... an)
-: _task(conf.task ? conf.task : Task::self()), _state(conf.state), _waiting(0), _joining(0), _link(this, conf.criterion);
+: _task(conf.task ? conf.task : Task::self()), _state(conf.state), _waiting(0), _joining(0), _link(this, conf.criterion){
+        
+        if(multitask && !conf.stack_size) { // auto-expand, user-level stack
+        constructor_prologue(STACK_SIZE);
+        _user_stack = new (SYSTEM) Segment(USER_STACK_SIZE);
+
+        // Attach the thread's user-level stack to the current address space so we can initialize it
+        Log_Addr ustack = Task::self()->address_space()->attach(_user_stack);
+
+        // Initialize the thread's user-level stack and determine a relative stack pointer (usp) from the top of the stack
+        Log_Addr usp = ustack + USER_STACK_SIZE;
+        if(conf.criterion == MAIN)
+            usp -= CPU::init_user_stack(usp, 0, an ...); // the main thread of each task must return to crt0 to call _fini (global destructors) before calling __exit
+        else
+            usp -= CPU::init_user_stack(usp, &__exit, an ...); // __exit will cause a Page Fault that must be properly handled
+
+        // Detach the thread's user-level stack from the current address space
+        Task::self()->address_space()->detach(_user_stack, ustack);
+
+        // Attach the thread's user-level stack to its task's address space so it will be able to access it when it runs
+        ustack = _task->address_space()->attach(_user_stack);
+
+        // Determine an absolute stack pointer (usp) from the top of the thread's user-level stack considering the address it will see it when it runs
+        usp = ustack + USER_STACK_SIZE - usp;
+
+        // Initialize the thread's system-level stack
+        _context = CPU::init_stack(usp, _stack + STACK_SIZE, &__exit, entry, an ...);
+    } else { // single-task scenarios and idle thread, which is a kernel thread, don't have a user-level stack
+        constructor_prologue(conf.stack_size);
+        _user_stack = 0;
+        _context = CPU::init_stack(0, _stack + conf.stack_size, &__exit, entry, an ...);
+    }
+
+    constructor_epilogue(entry, STACK_SIZE);
+
+}
 
 __END_SYS
 

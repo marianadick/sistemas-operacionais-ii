@@ -32,13 +32,19 @@ void Thread::init()
     System_Info * si = System::info();
 
     Address_Space * as = new (SYSTEM) Address_Space(MMU::current());
+    
     Segment * cs = new (SYSTEM) Segment(Log_Addr(si->pmm.app_code_pt), 0, MMU::pages(si->lm.app_code_size), Segment::Flags::APPC);
     Segment * ds = new (SYSTEM) Segment(Log_Addr(si->pmm.app_data_pt), 0, MMU::pages(si->lm.app_data_size), Segment::Flags::APPD);
+    
     Log_Addr code = si->lm.app_code;
     Log_Addr data = si->lm.app_data;
-    Main * main = reinterpret_cast<Main *>(si->lm.app_entry);
 
-    new (SYSTEM) Task(as, cs, ds, code, data, main);
+    Main * main = reinterpret_cast<Main *>(si->lm.app_entry);
+    int argc = static_cast<int>(si->lm.app_extra_size);
+    char ** argv = reinterpret_cast<char **>(si->lm.app_extra);
+    
+
+    new (SYSTEM) Task(as, cs, ds, code, data, main, argc, argv);
 
 #endif
 

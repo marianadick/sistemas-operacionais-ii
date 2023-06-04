@@ -120,7 +120,7 @@ void Thread::priority(const Criterion & c)
     if(preemptive)
         reschedule();
 
-    unlock();
+    //unlock();
 }
 
 

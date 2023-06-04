@@ -6,15 +6,22 @@ extern "C" { void _exec(void *); }
 
 __BEGIN_SYS
 
+// TODO P5 -> Validar lógica da função syscalled
 #ifdef __kernel__
 
-void CPU::syscalled(unsigned int int_id);
+void CPU::syscalled(unsigned int int_id){
+    _exec(reinterpret_cast<void *>(CPU::a1()));
+    CPU::a0(4);
+}
 
 #endif
 
 #ifndef __library__
 
-void CPU::Context::first_dispatch();
+void CPU::Context::first_dispatch(){
+    Context::pop(true);
+    iret();
+};
 
 #endif
 

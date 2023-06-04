@@ -109,6 +109,8 @@ public:
     static unsigned int id();
     static unsigned int cores();
 
+    static void syscalled(unsigned int callid);
+
     template <typename T>
     static T tsl(volatile T & lock) {
         T old = lock;

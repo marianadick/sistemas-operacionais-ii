@@ -169,6 +169,13 @@ void Agent::handle_task()
         int (* entry)();
         in(t, entry);
         id(Id(TASK_ID, reinterpret_cast<Id::Unit_Id>(new Adapter<Task>(t, entry))));
+    } break; 
+    // TODO P5 -> Verificar lógica
+    case CREATE3: {
+        Task * t;
+        int p1; int (* entry)(int); 
+        in(t, entry, p1);
+        id(Id(TASK_ID, reinterpret_cast<Id::Unit_Id>(new Adapter<Task>(t, entry, p1))));
     } break;
     case CREATE4: {
         Task * t;
