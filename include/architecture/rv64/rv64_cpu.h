@@ -105,7 +105,7 @@ public:
     public:
         Context() {}
         // Contexts are loaded with [m|s]ret, which gets pc from [m|s]epc and updates some bits of [m|s]status, that's why _st is initialized with [M|S]PIE and [M|S]PP
-        // Kernel threads are created with usp = 0 and have SPP_S set
+        // Kernel threads are created with USP = 0 and have SPP_S set
         // Dummy contexts for the first execution of each thread (both kernel and user) are created with exit = 0 and SPIE cleared (no interrupts until the second context is popped)
         Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): _usp(usp), _pc(entry), _st(multitask ? ((exit ? SPIE : 0) | (usp ? SPP_U : SPP_S) | SUM) : ((exit ? MPIE : 0) | MPP_M)), _x1(exit) {
             if(Traits<Build>::hysterically_debugged || Traits<Thread>::trace_idle) {
@@ -468,11 +468,9 @@ private:
     static unsigned int _bus_clock;
 };
 
-inline void CPU::Context::push(bool interrupt)
-{
-// change mode (ksp/usp)
+inline void CPU::Context::push(bool interrupt) {
+// Swapping (ksp, usp). Changing mode and preserving USP (user stack-pointer) through sscratch
 if (interrupt && multitask) {
-    // swap(ksp, usp)
     ASM("       csrr    x3, sstatus             \n"
         "       andi    x3, x3, 1 << 8          \n"
         "       bne     x3, zero, 1f            \n"
@@ -481,11 +479,15 @@ if (interrupt && multitask) {
         "       mv      sp, x3                  \n"
         "1:                                     \n");
 }
+
 ASM("       addi     sp, sp, %0             \n" : : "i"(-sizeof(Context))); // adjust SP for the pushes below
+
+// In case we are saving a context using the kernel stack, save USP that was previously stored into sscratch
 if(multitask) {
     ASM("       csrr     x3, sscratch           \n"     // SSCRATCH holds KSP in user-land and USP in kernel (USP = 0 for kernel threads)
         "       sd       x3,    0(sp)           \n");   // push USP
 }
+
 if(interrupt) {
   if(multitask) {
     ASM("       csrr     x3,    sepc            \n"
@@ -497,15 +499,18 @@ if(interrupt) {
 } else {
     ASM("       sd       x1,    8(sp)           \n");   // push RA as PC on context switches
 }
+
 if(!interrupt && multitask) {
     ASM("       li       x3,      %0            \n"
         "       csrs     sstatus, x3            \n": : "i"(SPP_S));   // set SPP_S inside the kernel; the push(true) on IC::entry() has already saved the correct value to eventually return to the application
 }
+
 if(multitask) {
     ASM("       csrr     x3, sstatus            \n");
 } else {
     ASM("       csrr     x3, mstatus            \n");
 }
+
 ASM("       sd      x3,     16(sp)           \n" // push st
     "       sd      x1,     24(sp)           \n" // push ra
     "       sd      x5,     32(sp)           \n" // push x5-x31
@@ -537,15 +542,20 @@ ASM("       sd      x3,     16(sp)           \n" // push st
     "       sd      x31,    240(sp)          \n");
 }
 
-inline void CPU::Context::pop(bool interrupt)
-{
-if (multitask)
-    ASM("       ld       x3,    0(sp)           \n"     // pop usp
-        "       csrw     sscratch, x3           \n");   // sscratch = usp (sscratch holds ksp in user-land and usp in kernel; usp = 0 for kernel threads)
+
+inline void CPU::Context::pop(bool interrupt) {
+// Load previous stack pointer into sscratch
+if (multitask) {
+    ASM("       ld       x3,    0(sp)           \n"     // pop USP
+        "       csrw     sscratch, x3           \n");   // sscratch = USP (sscratch holds ksp in user-land and USP in kernel; USP = 0 for kernel threads)
+}
+
 ASM("       ld       x3,    8(sp)           \n");       // pop PC into TMP
+
 if(interrupt) {
     ASM("       add      x3, x3, a0             \n");   // A0 is set by exception handlers to adjust [M|S]EPC to point to the next instruction if needed
 }
+
 if(multitask) {
     ASM("       csrw     sepc, x3               \n");   // SEPC = PC
 } else {
@@ -584,23 +594,28 @@ ASM("       ld       x3,    16(sp)           \n" // pop ST into TMP
     "       addi    sp, sp, %0              \n"
     :
     : "i"(sizeof(Context))); // complete the pops above by adjusting sp
+
 if(multitask) {
     ASM("       csrw    sstatus, x3             \n");   // SSTATUS = ST
 } else {
     ASM("       csrw    mstatus, x3             \n");   // MSTATUS = ST
 }
-if(!interrupt & !multitask)
+
+if(!interrupt & !multitask) {
     ASM("       li      x3, 3 << 11             \n"
         "       csrs    mstatus, x3             \n");   // mstatus.MPP is automatically cleared on mret, so we reset it to MPP_M here
+}
 
-if (multitask && interrupt)
-    // swap(ksp, usp)
+// Swaping (ksp, usp). Since the last stack pointer was stored into sscratch, we just change the stack pointer to it's value
+if (interrupt && multitask) {
     ASM("       andi    x3, x3, 1 << 8          \n"
         "       bne     x3, zero, 1f            \n"
         "       csrr    x3, sscratch            \n"
         "       csrw    sscratch, sp            \n"
         "       mv      sp, x3                  \n"
         "1:                                     \n");
+}
+
 }
 
 inline CPU::Reg64 htole64(CPU::Reg64 v) { return CPU::htole64(v); }
