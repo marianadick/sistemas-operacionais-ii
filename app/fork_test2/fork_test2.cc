@@ -8,7 +8,7 @@ using namespace EPOS;
 
 OStream cout;
 
-int fun(int argc, char * argv[]);
+int function(int argc, char * argv[]);
 
 int main()
 {
@@ -31,10 +31,10 @@ int main()
     argv3[1] = two;
     argv3[2] = three;
 
-    Task *task1 = new Task(Task::self(), &fun, argc2, argv2);
-    Task *task2 = new Task(task1, &fun, argc3, argv3);
+    Task *task1 = new Task(Task::self(), &function, argc2, argv2);
+    Task *task2 = new Task(task1, &function, argc3, argv3);
 
-    fun(argc1, argv1);
+    function(argc1, argv1);
 
     task1->join();
     task2->join();
@@ -45,7 +45,7 @@ int main()
     return 0;
 }
 
-int fun(int argc, char * argv[])
+int function(int argc, char * argv[])
 {
     for (int i = 0; i < argc; i++)
     {

@@ -10,16 +10,17 @@ Task::~Task()
 {
     db<Task>(TRC) << "~Task(this=" << this << ")" << endl;
 
-    while (!this->_threads.empty()) {
-        auto threadObject = this->_threads.remove();
-        delete threadObject->object();
+    // Clears Task' thread queue
+    while (!_threads.empty()) {
+        delete _threads.remove()->object();
     }
 
-    if (this->is_owns_cs()) { delete this->_cs;}
-    if (this->is_owns_ds()) { delete this->_ds;}
+    if (!shares_seg()) {
+        delete _cs;
+        delete _ds;
+    }
 
-
-    delete this->_as;
+    delete _as;
 
 }
 
