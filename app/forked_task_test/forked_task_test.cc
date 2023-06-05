@@ -8,35 +8,38 @@ using namespace EPOS;
 
 OStream cout;
 
-
-
-int my_address(void);
+int hi_message(int argc, char * argv[]);
 
 int main()
 {
-
-    cout << "I am the main task" << endl;
-    Task * task0 = Task::self();
-    Address_Space * as0 = task0->address_space();
-    cout << "Main task page directory is located at " << as0->pd() << endl;
-
-    cout << "Forking main task...." << endl;
-    Task * forked_task = new Task(task0, &my_address, 0);
+    char o[] = "O"; char i[] = "i";
+    int oi_size = 2;
+    char ** arg_oi = new char*[oi_size];
+    arg_oi[0] = o; arg_oi[1] = i;
 
 
-    forked_task->join();
+    int id_first_task = 1;
+    Task *first_task = new Task(Task::self(), &hi_message, id_first_task, arg_oi);
+    Task *second_task = new Task(first_task, &hi_message, (id_first_task+1), arg_oi);
+    Task *third_task = new Task(second_task, &hi_message, (id_first_task+2), arg_oi);
+
+    hi_message(0, arg_oi);
+
+    first_task->join();
+    second_task->join();
+    third_task->join();
+
+    delete first_task;
+    delete second_task;
+    delete third_task;
 
     return 0;
 }
 
-int my_address(void)
+int hi_message(int argc, char * argv[])
 {
-    cout << "----------------------------" << endl;
-    cout << "I am the forked task" << endl;
-    //Task * task0 = Task::self();
-    //Address_Space * as0 = task0->address_space();
-    //cout << "Forked task got page directory from main and is located at " << as0->pd() << endl;
-
-    cout << "----------------------------" << endl;
-    return 0;
+    cout <<"Task com id "<< argc << " diz: " << endl;
+    cout << argv[0] << argv[1] << endl;
+    
+    return 1;
 }

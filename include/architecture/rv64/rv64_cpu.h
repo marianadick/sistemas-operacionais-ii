@@ -104,9 +104,7 @@ public:
 
     public:
         Context() {}
-        // Contexts are loaded with [m|s]ret, which gets pc from [m|s]epc and updates some bits of [m|s]status, that's why _st is initialized with [M|S]PIE and [M|S]PP
-        // Kernel threads are created with USP = 0 and have SPP_S set
-        // Dummy contexts for the first execution of each thread (both kernel and user) are created with exit = 0 and SPIE cleared (no interrupts until the second context is popped)
+       
         Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): _usp(usp), _pc(entry), _st(multitask ? ((exit ? SPIE : 0) | (usp ? SPP_U : SPP_S) | SUM) : ((exit ? MPIE : 0) | MPP_M)), _x1(exit) {
             if(Traits<Build>::hysterically_debugged || Traits<Thread>::trace_idle) {
                                                                         _x5 =  5;  _x6 =  6;  _x7 =  7;  _x8 =  8;  _x9 =  9;
@@ -337,11 +335,14 @@ public:
     static Context *init_stack(Log_Addr usp, Log_Addr ksp, void (*exit)(), int (*entry)(Tn...), Tn... an)
     {
         ksp -= sizeof(Context);
-        Context *ctx = new (ksp) Context(entry, exit, usp); // init_stack is called with usp = 0 for kernel threads
-        init_stack_helper(&ctx->_x10, an...);               // x10 is a0
+        Context *ctx = new (ksp) Context(entry, exit, usp); 
+
+        init_stack_helper(&ctx->_x10, an...);        
+
         ksp -= sizeof(Context);
-        ctx = new (ksp) Context(&_int_leave, 0, 0); // this context will be popped by switch() to reach _int_leave(), which will activate the thread's context
-        ctx->_x10 = 0;                              // zero fr() for the pop(true) issued by _int_leave()
+        ctx = new (ksp) Context(&_int_leave, 0, 0); 
+        ctx->_x10 = 0;   
+                                  
         return ctx;
     }
 

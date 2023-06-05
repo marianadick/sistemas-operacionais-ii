@@ -19,8 +19,7 @@ void CPU::syscalled(unsigned int int_id){
 #ifndef __library__
 
 void CPU::Context::first_dispatch(){
-    Context::pop(true);
-    iret();
+    Context::pop(true); iret();
 };
 
 #endif
