@@ -10,15 +10,12 @@ void CPU::init()
 {
     db<Init, CPU>(TRC) << "CPU::init()" << endl;
 
-    if(Traits<MMU>::enabled)
-        MMU::init();
-    else
-        db<Init, MMU>(WRN) << "MMU is disabled!" << endl;
-
-#ifdef __cortex_a__
-    if(Traits<FPU>::enabled)
-        CPU::fpu_enable();
-#endif
+    if(CPU::id() == 0) {
+        if(Traits<MMU>::enabled)
+            MMU::init();
+        else
+            db<Init, MMU>(WRN) << "MMU is disabled!" << endl;
+    }
 
 #ifdef __PMU_H
     if(Traits<PMU>::enabled)

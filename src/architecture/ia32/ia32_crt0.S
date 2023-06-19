@@ -5,15 +5,14 @@
         .globl        _start
         .type        _start,@function
 _start:
-        // Temporary stack(s) for INIT were created and configure by SETUP
-        // BSS was cleared by SETUP
+        // we don't clear the BSS like in some MCU because IA32 uses
+        // an ELF loader that does it for each loaded data segment
         call        _init
 
-        .align      4
+        .align      4        // the following label must be aligned for some versions
         .globl      __epos_app_entry
         .type   __epos_app_entry,@function
 __epos_app_entry:
-        // Main's stack was allocated by Thread::init()
         call        main
         push        %eax        // save main's return value to be used by exit()
         call        _fini

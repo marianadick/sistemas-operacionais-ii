@@ -49,9 +49,6 @@ endif
 flash1: all1
 		(cd img && $(MAKE) flash)
 
-bin: FORCE
-		$(MAKE) APPLICATION=hello etc tools
-
 TESTS		:= $(shell find $(TST) -maxdepth 1 -type d -and -not -name tests -printf "%f\n")
 TESTS_TO_RUN	:= $(APPLICATIONS) $(TESTS)
 TESTS_COMPILED 	:= $(subst .img,,$(shell find $(IMG) -name \*.img -printf "%f\n"))
@@ -59,13 +56,16 @@ TESTS_COMPILED 	:= $(TESTS_COMPILED) $(subst .bin,,$(shell find $(IMG) -name \*.
 TESTS_FINISHED 	:= $(subst .out,,$(shell find $(IMG) -name \*.out -printf "%f\n"))
 UNFINISHED_TESTS:= $(filter-out $(TESTS_FINISHED),$(TESTS_TO_RUN))
 UNCOMPILED_TESTS:= $(filter-out $(TESTS_COMPILED),$(TESTS_TO_RUN))
-test: linktest
+test: FORCE
+		$(foreach tst,$(TESTS),$(LINK) $(TST)/$(tst) $(APP);)
 		$(foreach tst,$(UNFINISHED_TESTS),$(MAKETEST) APPLICATION=$(tst) prebuild_$(tst) clean1 all1 posbuild_$(tst) prerun_$(tst) run1 posbuild_$(tst);)
 		
-buildtest: linktest
+buildtest: FORCE
+		$(foreach tst,$(TESTS),$(LINK) $(TST)/$(tst) $(APP);)
 		$(foreach tst,$(UNCOMPILED_TESTS),$(MAKETEST) APPLICATION=$(tst) prebuild_$(tst) clean1 all1 posbuild_$(tst) || exit;)
 
-runtest: linktest
+runtest: FORCE
+		$(foreach tst,$(TESTS),$(LINK) $(TST)/$(tst) $(APP);)
 		$(foreach tst,$(UNFINISHED_TESTS),$(MAKETEST) APPLICATION=$(tst) prerun_$(tst) run1 posbuild_$(tst) || exit;)
 
 gittest: buildtest runtest
@@ -73,7 +73,7 @@ gittest: buildtest runtest
 linktest: FORCE
 		$(foreach tst,$(TESTS),$(LINK) $(TST)/$(tst) $(APP);)
 
-cleantest: cleanapps
+cleantest: FORCE
 		$(foreach tst,$(TESTS),$(LINK) $(TST)/$(tst) $(APP);)
 		$(foreach tst,$(TESTS),cd $(TST)/${tst} && $(MAKE) APPLICATION=$(tst) clean;)
 		find $(APP) -maxdepth 1 -type l -exec $(CLEAN) {} \;
@@ -114,7 +114,6 @@ veryclean: clean cleanapps cleantest
 		find $(IMG) -name "*.out" -exec $(CLEAN) {} \;
 		find $(IMG) -name "*.pcap" -exec $(CLEAN) {} \;
 		find $(IMG) -name "*.net" -exec $(CLEAN) {} \;
-		find $(IMG) -name "*.log" -exec $(CLEAN) {} \;
 		find $(IMG) -maxdepth 1 -type f -perm 755 -exec $(CLEAN) {} \;
 
 dist: veryclean

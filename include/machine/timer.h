@@ -21,7 +21,7 @@ public:
         USER5
     };
 
-    typedef long Tick;
+    typedef int Tick;
     typedef IC_Common::Interrupt_Handler Handler;
 
 protected:

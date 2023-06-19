@@ -42,18 +42,16 @@ namespace EPOS {
 #define __USING_SYS             using namespace EPOS::S;
 #define _SYS                    ::EPOS::S
 
-#ifndef __kernel__
+#ifndef __mode_kernel__
 namespace EPOS {
     using namespace S;
     using namespace S::U;
 }
 #endif
 
-#define __CONCATENATE(X,Y)      X##Y
-#define __HEADER_NAME(X,Y)      __CONCATENATE(X,_##Y).h
-#define __HEADER_ARCH(X)        <architecture/ARCH/__HEADER_NAME(ARCH,X)>
-#define __HEADER_MACH(X)        <machine/MACH/__HEADER_NAME(MACH,X)>
-#define __HEADER_MMOD(X)        <machine/MACH/MMOD/__HEADER_NAME(MMOD,X)>
+#define __HEADER_ARCH(X)        <architecture/ARCH/ARCH/**/_##X.h>
+#define __HEADER_MACH(X)        <machine/MACH/MACH/**/_##X.h>
+#define __HEADER_MMOD(X)        <machine/MACH/MMOD/MMOD/**/_##X.h>
 #define __HEADER_TRAN(X)        <transducer/X.h>
 #define __APPL_TRAITS_T(X)      <../app/X/X##_traits.h>
 #define __APPL_TRAITS(X)        __APPL_TRAITS_T(X)
@@ -73,6 +71,11 @@ namespace EPOS {
 //============================================================================
 // CONFIGURATION
 //============================================================================
+#include <system/meta.h>
+#include <system/traits.h>
+#include __APPLICATION_TRAITS_H
+#include <system/types.h>
+
 #define __CPU_H                 __HEADER_ARCH(cpu)
 #define __MMU_H                 __HEADER_ARCH(mmu)
 
@@ -80,8 +83,7 @@ namespace EPOS {
 #define __IC_H                  __HEADER_MACH(ic)
 #define __TIMER_H               __HEADER_MACH(timer)
 
-#ifdef __legacy_pc__
-#define __pc__
+#ifdef __mmod_legacy_pc__
 #define __TSC_H                 __HEADER_ARCH(tsc)
 #define __PMU_H                 __HEADER_ARCH(pmu)
 
@@ -91,15 +93,12 @@ namespace EPOS {
 #define __UART_H                __HEADER_MACH(uart)
 #define __DISPLAY_H             __HEADER_MACH(display)
 #define __KEYBOARD_H            __HEADER_MACH(keyboard)
-#define __SCRATCHPAD_H          __HEADER_MACH(scratchpad)
-#define __FPGA_H                __HEADER_MACH(fpga)
 
 #define __KEYPAD_H              __HEADER_TRAN(keypad)
 
 #endif
 
-#ifdef __lm3s811__
-#define __armv7m__
+#ifdef __mmod_lm3s811__
 #define __cortex_m__
 #define __cortex_m3__
 #define __TSC_H                 __HEADER_ARCH(tsc)
@@ -109,8 +108,7 @@ namespace EPOS {
 
 #endif
 
-#ifdef __emote3__
-#define __armv7m__
+#ifdef __mmod_emote3__
 #define __cortex_m__
 #define __cortex_m3__
 #define __TSC_H                 __HEADER_ARCH(tsc)
@@ -135,21 +133,20 @@ namespace EPOS {
 #define __HYGROMETER_H          __HEADER_TRAN(hygrometer)
 #endif
 
-#ifdef __zynq__
-#define __armv7a__
+#ifdef __mmod_zynq__
 #define __cortex_a__
 #define __cortex_a9__
 #define __TSC_H                 __HEADER_ARCH(tsc)
 #define __PMU_H                 __HEADER_ARCH(pmu)
 
 #define __UART_H                __HEADER_MACH(uart)
+#define __NIC_H                 __HEADER_MACH(nic)
 #define __ethernet__
 #define __AES_H                 __HEADER_MACH(aes)
 #define __ipv4__
 #endif
 
-#ifdef __realview_pbx__
-#define __armv7a__
+#ifdef __mmod_realview_pbx__
 #define __cortex_a__
 #define __cortex_a9__
 #define __realview_pbx__
@@ -159,7 +156,7 @@ namespace EPOS {
 #define __UART_H                __HEADER_MACH(uart)
 #endif
 
-#ifdef __raspberry_pi3__
+#ifdef __mmod_raspberry_pi3__
 #define __cortex_a__
 #define __cortex_a53__
 #define __TSC_H                 __HEADER_ARCH(tsc)
@@ -168,27 +165,13 @@ namespace EPOS {
 #define __UART_H                __HEADER_MACH(uart)
 #endif
 
-#ifdef __sifive_e__
+#ifdef __mach_riscv__
 #define __riscv__
 #define __TSC_H                 __HEADER_ARCH(tsc)
-#define __PMU_H                 __HEADER_ARCH(pmu)
 
 #define __UART_H                __HEADER_MACH(uart)
 #endif
 
-#ifdef __sifive_u__
-#define __riscv__
-#define __TSC_H                 __HEADER_ARCH(tsc)
-#define __PMU_H                 __HEADER_ARCH(pmu)
-
-#define __UART_H                __HEADER_MACH(uart)
-#define __SPI_H                 __HEADER_MACH(spi)
-#endif
-
-#include <system/meta.h>
-#include <system/traits.h>
-#include __APPLICATION_TRAITS_H
-#include <system/types.h>
 
 //============================================================================
 // THINGS EVERBODY NEEDS

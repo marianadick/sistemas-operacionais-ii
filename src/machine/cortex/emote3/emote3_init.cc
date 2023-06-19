@@ -2,8 +2,11 @@
 
 #include <machine/machine.h>
 
+#ifdef __mmod_emote3__
+
 #include <machine/ic.h>
 #include <machine/gpio.h>
+#include <transducer.h>
 #include <synchronizer.h>
 
 __BEGIN_SYS
@@ -31,3 +34,5 @@ void eMote3::init()
 }
 
 __END_SYS
+
+#endif

@@ -4,7 +4,7 @@
 
 __BEGIN_SYS
 
-#ifdef __cortex_m__
+#if defined(__mmod_emote3__) || defined(__mmod_lm3s811__)
 
 volatile TSC::Time_Stamp TSC::_overflow = 0;
 

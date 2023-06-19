@@ -10,12 +10,16 @@ void Timer::init()
 {
     db<Init, Timer>(TRC) << "Timer::init()" << endl;
 
-    assert(CPU::int_disabled());
+    CPU::int_disable();
 
-    IC::int_vector(IC::INT_SYS_TIMER, int_handler);
+    if(!Traits<System>::multicore || (CPU::id() == 0))
+        IC::int_vector(IC::INT_SYS_TIMER, int_handler);
 
-    reset();
+    config(FREQUENCY);
     IC::enable(IC::INT_SYS_TIMER);
+
+    CPU::int_enable();
+
 }
 
 __END_SYS

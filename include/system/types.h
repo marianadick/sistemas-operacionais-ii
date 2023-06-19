@@ -41,14 +41,6 @@ extern "C"
 inline void * operator new(size_t s, void * a) { return a; }
 inline void * operator new[](size_t s, void * a) { return a; }
 
-void * operator new(size_t, const EPOS::System_Allocator &);
-void * operator new[](size_t, const EPOS::System_Allocator &);
-
-void * operator new(size_t, const EPOS::Scratchpad_Allocator &);
-void * operator new[](size_t, const EPOS::Scratchpad_Allocator &);
-
-void * operator new(size_t, const EPOS::Color &);
-void * operator new[](size_t, const EPOS::Color &);
 
 // Utilities
 __BEGIN_UTIL
@@ -62,10 +54,11 @@ template<> class Padding<64> { long long int _padding; } __attribute__((packed))
 typedef unsigned char Percent;
 typedef unsigned char UUID[8];
 
-template <typename ... Tn> struct Dummy {
-    Dummy(Tn ... an){}
-    friend Debug & operator<<(Debug & db, const Dummy & d) { return db; };
-};
+class Dummy {};
+
+__END_UTIL
+
+__BEGIN_SYS
 
 static const int MAX_INT = -1U/2;
 static const long int MAX_LONG_INT = -1UL/2;
@@ -92,7 +85,7 @@ enum Infinity : Time_Base { INFINITE = -1U };
 class Second
 {
 public:
-    typedef Time_Base Type;
+	typedef Time_Base Type;
 
 public:
     Second() {};
@@ -110,7 +103,7 @@ private:
 class Milisecond
 {
 public:
-    typedef Time_Base Type;
+	typedef Time_Base Type;
 
 public:
     Milisecond() {};
@@ -129,7 +122,7 @@ private:
 class Microsecond
 {
 public:
-    typedef Time_Base Type;
+	typedef Time_Base Type;
 
 public:
     Microsecond() {};
@@ -150,10 +143,6 @@ typedef unsigned long Hertz;
 typedef unsigned long PPM; // parts per million
 typedef unsigned long long PPB; // parts per billion
 
-__END_UTIL
-
-__BEGIN_SYS
-
 // System Components IDs
 // The order in this enumeration defines many things in the system (e.g. init)
 typedef unsigned int Type_Id;
@@ -171,6 +160,7 @@ enum
     CLOCK_ID,
     ALARM_ID,
     CHRONOMETER_ID,
+    IPC_COMMUNICATOR_ID,
     UTILITY_ID,
     LAST_COMPONENT_ID,
 

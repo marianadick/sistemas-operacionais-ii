@@ -15,10 +15,12 @@ void CPU::init()
     _bus_clock = System::info()->tm.bus_clock;
 
     // Initialize the MMU
-    if(Traits<MMU>::enabled)
-        MMU::init();
-    else
-        db<Init, MMU>(WRN) << "MMU is disabled!" << endl;
+    if(CPU::id() == 0) {
+        if(Traits<MMU>::enabled)
+            MMU::init();
+        else
+            db<Init, MMU>(WRN) << "MMU is disabled!" << endl;
+    }
 
     // Initialize the PMU	
     if(Traits<PMU>::enabled)
@@ -40,5 +42,12 @@ void CPU::init()
 //            << "}\n";
 //    }
 }
+
+void CPU::smp_barrier_init(unsigned int cores) {
+    // Core activation in IA32 is handled by the APIC
+    _cores = cores;
+    if(smp)
+        APIC::remap();
+};
 
 __END_SYS

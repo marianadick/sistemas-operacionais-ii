@@ -11,7 +11,7 @@
 
 __BEGIN_SYS
 
-class Zynq: private Machine_Common
+class Zynq: public Machine_Common
 {
     friend Machine; // for pre_init() and init()
 
@@ -173,8 +173,11 @@ public:
 protected:
     Zynq() {}
 
-    using Machine_Common::delay;
-    using Machine_Common::clear_bss;
+    static void delay(const Microsecond & time) {
+        assert(Traits<TSC>::enabled);
+        TSC::Time_Stamp end = TSC::time_stamp() + time * (TSC::frequency() / 1000000);
+        while(end > TSC::time_stamp());
+    }
 
     static void reboot();
     static void poweroff() { reboot(); }
@@ -194,9 +197,11 @@ protected:
         return (n & 0x3) + 1;
     }
 
+    static void smp_barrier_init(unsigned int n_cpus) {}
+
     static void enable_uart(unsigned int unit) {}
 
-    // PM
+// PM
     static void power_uart(unsigned int unit, const Power_Mode & mode) {
         assert(unit < UARTS);
         switch(mode) {

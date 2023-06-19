@@ -14,19 +14,19 @@ __BEGIN_SYS
 // Tick timer used by the system
 class Timer: public System_Timer_Engine
 {
-    friend Machine;             // for init()
-    friend class Init_System;   // for init()
-    friend IC;                  // for eoi()
+    friend Machine;
+    friend IC;
+    friend class Init_System;
 
 protected:
-    typedef System_Timer_Engine Engine;
-    typedef IC_Common::Interrupt_Id Interrupt_Id;
-
     static const unsigned int CHANNELS = 2;
     static const unsigned int FREQUENCY = Traits<Timer>::FREQUENCY;
 
+    typedef System_Timer_Engine Engine;
+    typedef IC_Common::Interrupt_Id Interrupt_Id;
+
 protected:
-    Timer(Channel channel, Hertz frequency, const Handler & handler, bool retrigger = true)
+    Timer(Channel channel, const Hertz & frequency, const Handler & handler, bool retrigger = true)
     : _channel(channel), _initial(FREQUENCY / frequency), _retrigger(retrigger), _handler(handler) {
         db<Timer>(TRC) << "Timer(f=" << frequency << ",h=" << reinterpret_cast<void*>(handler) << ",ch=" << channel << ") => {count=" << _initial << "}" << endl;
 
@@ -35,7 +35,8 @@ protected:
         else
             db<Timer>(WRN) << "Timer not installed!"<< endl;
 
-        _current = _initial;
+        for(unsigned int i = 0; i < Traits<Machine>::CPUS; i++)
+            _current[i] = _initial;
     }
 
 public:
@@ -45,16 +46,7 @@ public:
         _channels[_channel] = 0;
     }
 
-    Tick read() { return _current; }
-
-    int restart() {
-        db<Timer>(TRC) << "Timer::restart() => {f=" << frequency() << ",h=" << reinterpret_cast<void *>(_handler) << ",count=" << _current << "}" << endl;
-
-        int percentage = _current * 100 / _initial;
-        _current= _initial;
-
-        return percentage;
-    }
+    Tick read() { return _current[CPU::id()]; }
 
     static void reset() { db<Timer>(TRC) << "Timer::reset()" << endl; Engine::reset(); }
     static void enable() { db<Timer>(TRC) << "Timer::enable()" << endl; Engine::enable(); }
@@ -68,7 +60,7 @@ public:
 
 private:
     static void int_handler(Interrupt_Id i);
-    static void eoi(Interrupt_Id i);
+    static void eoi(Interrupt_Id int_id) { Engine::eoi(int_id); }
 
     static void init();
 
@@ -76,7 +68,7 @@ protected:
     unsigned int _channel;
     Tick _initial;
     bool _retrigger;
-    volatile Tick _current;
+    volatile Tick _current[Traits<Build>::CPUS];
     Handler _handler;
 
     static Timer * _channels[CHANNELS];
@@ -88,11 +80,23 @@ class Scheduler_Timer: public Timer
 {
 public:
     Scheduler_Timer(Microsecond quantum, const Handler & handler): Timer(SCHEDULER, 1000000 / quantum, handler) {}
+
+    int restart() {
+        db<Timer>(TRC) << "Timer::restart() => {f=" << frequency() << ",h=" << reinterpret_cast<void *>(_handler) << ",count=" << _current[CPU::id()] << "}" << endl;
+
+        int percentage = _current[CPU::id()] * 100 / _initial;
+        _current[CPU::id()] = _initial;
+
+        return percentage;
+    }
 };
 
 // Timer used by Alarm
 class Alarm_Timer: public Timer
 {
+public:
+    static const unsigned int FREQUENCY = Timer::FREQUENCY;
+
 public:
     Alarm_Timer(const Handler & handler): Timer(ALARM, FREQUENCY, handler) {}
 };
@@ -101,7 +105,6 @@ public:
 // Timer available for users
 class User_Timer: private User_Timer_Engine
 {
-    friend IC;          // for eoi()
     friend class PWM;
 
 private:
@@ -109,7 +112,7 @@ private:
     typedef Engine::Count Count;
     typedef IC_Common::Interrupt_Id Interrupt_Id;
 
-    static const unsigned int UNITS = 1;
+    static const unsigned int UNITS = Traits<Timer>::UNITS - Traits<TSC>::enabled; // TSC uses the last timer. To use the it, you must disable the TSC.
 
 public:
     using Timer_Common::Handler;
@@ -119,14 +122,19 @@ public:
     : Engine(channel, time, handler ? true : false, periodic), _channel(channel), _handler(handler) {
         assert(channel < UNITS);
         if(_handler) {
-            IC::int_vector(IC::INT_USR_TIMER, _handler, eoi);
-            IC::enable(IC::INT_USR_TIMER);
+            IC::Interrupt_Id id = _channel == 0 ? IC::INT_USER_TIMER0 : _channel == 1 ? IC::INT_USER_TIMER1 :
+                                  _channel == 2 ? IC::INT_USER_TIMER2 : IC::INT_USER_TIMER3;
+            IC::int_vector(id, _handler);
+            IC::enable(id);
         }
     }
     
     ~User_Timer() {
-        if(_handler)
-            IC::disable(IC::INT_USR_TIMER);
+        if(_handler) {
+            IC::Interrupt_Id id = _channel == 0 ? IC::INT_USER_TIMER0 : _channel == 1 ? IC::INT_USER_TIMER1 :
+                                  _channel == 2 ? IC::INT_USER_TIMER2 : IC::INT_USER_TIMER3;
+            IC::disable(id);
+        }
     }
 
     using Engine::read;
@@ -136,10 +144,7 @@ public:
 
     void power(const Power_Mode & mode);
 
-private:
-    static void eoi(Interrupt_Id i);
-
-    static void init() {} // user timers are initialized at the constructor
+    static void eoi(Interrupt_Id int_id) { Engine::eoi(int_id); }
 
 private:
     unsigned int _channel;

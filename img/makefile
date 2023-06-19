@@ -7,7 +7,6 @@ IMAGES 		:= $(subst .img,,$(shell find . -name \*.img -printf "%f\n")) \
 		$(IMAGES) $(subst .bin,,$(shell find . -name \*.bin -printf "%f\n")) \
 		$(IMAGES) $(subst .hex,,$(shell find . -name \*.bin -printf "%f\n"))
 IMAGE		:= $(addsuffix $(MACH_IMGSUFF),$(APPLICATION))
-.PRECIOUS: $(APPLICATION).img
 OUTPUT		:= $(addsuffix .out,$(APPLICATION))
 PEER		:= p-$(APPLICATION)
 PEER_IMAGE	:= p-$(IMAGE)
@@ -21,17 +20,14 @@ endif
 
 DEBUGGER	:= $(MACH_DEBUGGER)
 ifeq ($(DEBUG),1)
-ifeq ($(MMOD),sifive_u)
-DEBUGGER	:= $(DEBUGGER) -ex "set arch riscv:rv64" -ex "add-inferior" -ex "inferior 2" -ex "attach 2"
+ifneq ($(wildcard $(IMG)/$(MACH)_setup),)
+DEBUGGER	:= $(DEBUGGER) -ex "add-symbol-file $(call DBSEC,$(SRC)/setup/$(MACH)_setup,.text)"
 endif
-ifneq ($(wildcard $(IMG)/setup_$(MMOD)),)
-DEBUGGER	:= $(DEBUGGER) -ex "add-symbol-file $(call DBSEC,$(SRC)/setup/setup_$(MMOD),.text)"
+ifneq ($(wildcard $(IMG)/$(MACH)_init),)
+DEBUGGER	:= $(DEBUGGER) -ex "add-symbol-file $(call DBSEC,$(SRC)/init/$(MACH)_init,.text)"
 endif
-ifneq ($(wildcard $(IMG)/init_$(MMOD)),)
-DEBUGGER	:= $(DEBUGGER) -ex "add-symbol-file $(call DBSEC,$(SRC)/init/init_$(MMOD),.text)"
-endif
-ifneq ($(wildcard $(IMG)/system_$(MMOD)),)
-DEBUGGER	:= $(DEBUGGER) -ex "add-symbol-file $(call DBSEC,$(SRC)/system/system_$(MMOD),.text)"
+ifneq ($(wildcard $(IMG)/$(MACH)_system),)
+DEBUGGER	:= $(DEBUGGER) -ex "add-symbol-file $(call DBSEC,$(SRC)/system/$(MACH)_system,.text)"
 endif
 DEBUGGER	:= $(DEBUGGER) -ex "add-symbol-file $(call DBSEC,$(APP)/$(APPLICATION)/$(APPLICATION),.text)"
 PEER_DEBUGGER	:= $(subst 1235,1236,$(DEBUGGER))
@@ -81,8 +77,6 @@ else
 		&& $(TCPDUMP) $(PEER).pcap > $(PEER).net \
 		&& read -p 'Press [Enter] key to close ...'" &
 endif
-else
-		echo "Test must be run on real hardware platform!" > $(OUTPUT)
 endif
 
 debug:		$(IMAGE)

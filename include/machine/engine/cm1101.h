@@ -35,7 +35,7 @@ public:
     };
 
     // Versions
-    // TODO: define the correct integer value for each version as the checksum of the responses to GET_FIRMWARE_VERSION
+    // FIXME: define the correct integer value for each version as the checksum of the responses to GET_FIRMWARE_VERSION
     enum {
         UNKNOWN,
         V1_21,

@@ -16,24 +16,27 @@ __BEGIN_SYS
 class Machine: private Machine_Model
 {
     friend class Init_System;
-    friend class Init_Begin;
+    friend class First_Object;
 
 private:
+    static const bool smp = Traits<System>::multicore;
+
     typedef Machine_Model Engine;
 
 public:
     Machine() {}
 
     using Engine::delay;
-    using Engine::clear_bss;
 
     static void panic();
 
-    static void reboot() {
+    static void reboot()
+    {
         db<Machine>(WRN) << "Machine::reboot()" << endl;
         Engine::reboot();
     }
-    static void poweroff() {
+    static void poweroff()
+    {
         db<Machine>(WRN) << "Machine::poweroff()" << endl;
         Engine::poweroff();
     }

@@ -1,59 +1,68 @@
-// EPOS SiFive-E (RISC-V) Metainfo and Configuration
+// EPOS RISC-V Sifive Metainfo and Configuration
 
-#ifndef __riscv_sifive_e_traits_h
-#define __riscv_sifive_e_traits_h
+#ifndef __riscv_sifive_traits_h
+#define __riscv_sifive_traits_h
 
 #include <system/config.h>
 
 __BEGIN_SYS
 
 class Machine_Common;
-template<> struct Traits<Machine_Common>: public Traits<Build>
-{
-protected:
-    static const bool library = (Traits<Build>::MODE == Traits<Build>::LIBRARY);
-};
+template<> struct Traits<Machine_Common>: public Traits<Build> {};
 
-template<> struct Traits<Machine>: public Traits<Machine_Common>
+template <> struct Traits<Machine>: public Traits<Machine_Common>
 {
-public:
-    // Value to be used for undefined addresses
+    static const bool cpus_use_local_timer      = false;
+
     static const unsigned int NOT_USED          = 0xffffffff;
+    static const unsigned int CPUS              = Traits<Build>::CPUS;
+
+    // Boot Image
+    static const unsigned int BOOT_LENGTH_MIN   = NOT_USED;
+    static const unsigned int BOOT_LENGTH_MAX   = NOT_USED;
 
     // Physical Memory
-    static const unsigned int ROM_BASE          = 0x20400000;                           // 516 MB
-    static const unsigned int ROM_TOP           = 0x3fffffff;                           // 1 GB
-    static const unsigned int RAM_BASE          = 0x80000000;                           // 2 GB
-    static const unsigned int RAM_TOP           = 0x80003fff;                           // 2 GB + 16 KB
-    static const unsigned int MIO_BASE          = 0x00000000;
-    static const unsigned int MIO_TOP           = 0x1fffffff;                           // 512 MB (max 512 MB of MIO => RAM + MIO < 2 G)
+    static const unsigned int MEM_BASE          = 0x80000000;
+    static const unsigned int VECTOR_TABLE      = NOT_USED;
+    static const unsigned int PAGE_TABLES       = NOT_USED; // No paging MMU
+    static const unsigned int MEM_TOP           = 0x87ffffff; // 128 MB
+    static const unsigned int BOOT_STACK        = 0x87ffffff;
 
-    // Physical Memory at Boot
+    // Logical Memory Map
     static const unsigned int BOOT              = NOT_USED;
-    static const unsigned int SETUP             = library ? NOT_USED : RAM_BASE;        // RAM_BASE (will be part of the free memory at INIT, using a logical address identical to physical eliminate SETUP relocation)
-    static const unsigned int IMAGE             = 0x80100000;                           // RAM_BASE + 1 MB (will be part of the free memory at INIT, defines the maximum image size; if larger than 3 MB then adjust at SETUP)
+    static const unsigned int SETUP             = NOT_USED;
+    static const unsigned int INIT              = NOT_USED;
 
-    // Logical Memory
-    static const unsigned int APP_LOW           = library ? RAM_BASE : 0x80400000;      // 2 GB + 4 MB
-    static const unsigned int APP_HIGH          = 0xff7fffff;                           // SYS - 1
+    static const unsigned int APP_LOW           = 0x80000000;
+    static const unsigned int APP_CODE          = 0x80000000;
+    static const unsigned int APP_DATA          = 0x80000000;
+    static const unsigned int APP_HIGH          = 0x87ffffff;
 
-    static const unsigned int APP_CODE          = library ? ROM_BASE : APP_LOW;
-    static const unsigned int APP_DATA          = library ? APP_LOW : APP_CODE + 4 * 1024 * 1024;
+    static const unsigned int PHY_MEM           = NOT_USED; // No paging MMU
+    static const unsigned int IO_BASE           = NOT_USED; // No paging MMU
+    static const unsigned int IO_TOP            = NOT_USED; // No paging MMU
 
-    static const unsigned int INIT              = library ? NOT_USED : 0x80080000;      // RAM_BASE + 512 KB (will be part of the free memory at INIT)
-    static const unsigned int PHY_MEM           = library ? RAM_BASE : 0x20000000;      // 512 MB (max 1536 MB of RAM)
-    static const unsigned int IO                = 0x00000000;                           // 0 (max 512 MB of IO = MIO_TOP - MIO_BASE)
-    static const unsigned int SYS               = 0xff800000;                           // 4 GB - 8 MB
+    static const unsigned int SYS               = NOT_USED; // No paging MMU
+    static const unsigned int SYS_CODE          = NOT_USED; // No paging MMU
+    static const unsigned int SYS_DATA          = NOT_USED; // No paging MMU
+    static const unsigned int SYS_HEAP          = NOT_USED; // No paging MMU
+    static const unsigned int SYS_STACK         = NOT_USED; // No paging MMU
 
     // Default Sizes and Quantities
-    static const unsigned int MAX_THREADS       = 7;
-    static const unsigned int STACK_SIZE        = 756;
-    static const unsigned int HEAP_SIZE         = 6144;
+    static const unsigned int STACK_SIZE        = 16 * 1024;
+    static const unsigned int HEAP_SIZE         = 16 * 1024 * 1024;
+    static const unsigned int MAX_THREADS       = 16;
+
+    // Clocks
+    static const unsigned int TIMER_CLOCK       = 10000000;
 };
 
 template <> struct Traits<IC>: public Traits<Machine_Common>
 {
     static const bool debugged = hysterically_debugged;
+
+    static const unsigned int IRQS = 1024; // PLIC
+    static const unsigned int INTS = 1056; // Exceptions + Software + Local + Timer + External
 };
 
 template <> struct Traits<Timer>: public Traits<Machine_Common>
@@ -61,7 +70,6 @@ template <> struct Traits<Timer>: public Traits<Machine_Common>
     static const bool debugged = hysterically_debugged;
 
     static const unsigned int UNITS = 1;
-    static const unsigned int CLOCK = 10000000;
 
     // Meaningful values for the timer frequency range from 100 to 10000 Hz. The
     // choice must respect the scheduler time-slice, i. e., it must be higher
@@ -73,7 +81,9 @@ template <> struct Traits<UART>: public Traits<Machine_Common>
 {
     static const unsigned int UNITS = 2;
 
-    static const unsigned int CLOCK = 22729000;
+    static const unsigned int REFERENCE_CLOCK = 22729000;
+    static const unsigned int CLOCK_DIVISOR = 16;
+    static const unsigned int CLOCK = REFERENCE_CLOCK/CLOCK_DIVISOR;
 
     static const unsigned int DEF_UNIT = 1;
     static const unsigned int DEF_BAUD_RATE = 115200;

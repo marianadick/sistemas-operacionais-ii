@@ -7,7 +7,7 @@
 
 __BEGIN_SYS
 
-class PMU_Common: public Traits_Tokens::PMU_Event
+class PMU_Common
 {
 public:
     typedef unsigned int Channel;
@@ -20,12 +20,6 @@ public:
     };
 
 protected:
-    static const unsigned int CHANNELS = 0;
-    static const unsigned int FIXED = 0;
-    static const unsigned int EVENTS = LAST_EVENT;
-    static const unsigned int UNSUPORTED_EVENT = -1U;
-
-protected:
     PMU_Common() {}
 
 public:
@@ -35,6 +29,11 @@ public:
     static void start(Channel channel) {}
     static void stop(Channel channel) {}
     static void reset(Channel channel) {}
+
+protected:
+    static const unsigned int CHANNELS = 0;
+    static const unsigned int FIXED = 0;
+    static const unsigned int EVENTS = 0;
 };
 
 #ifndef __PMU_H

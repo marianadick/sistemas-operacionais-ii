@@ -9,9 +9,9 @@ void Timer::init()
 {
     db<Init, Timer>(TRC) << "Timer::init()" << endl;
 
-    Engine::init();
-    IC::int_vector(IC::INT_SYS_TIMER, int_handler, eoi);
+    IC::int_vector(IC::INT_SYS_TIMER, int_handler);
     IC::enable(IC::INT_SYS_TIMER);
+    Engine::init();
 }
 
 __END_SYS

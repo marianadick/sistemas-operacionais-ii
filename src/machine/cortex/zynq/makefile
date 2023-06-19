@@ -1,4 +1,4 @@
-# EPOS EPOS Zynq (ARM Cortex-A9) Machine Makefile
+# EPOS Cortex Machine Makefile
 
 include ../../../../makedefs
 

@@ -3,15 +3,11 @@
 #ifndef __emote3_info_h
 #define __emote3_info_h
 
-#include <system/info.h>
+#include <machine/cortex/cortex_info.h>
 
 __BEGIN_SYS
 
-struct System_Info: public System_Info_Common
-{
-    Boot_Map bm;
-    Library_Load_Map lm;
-};
+typedef Cortex_System_Info System_Info;
 
 __END_SYS
 

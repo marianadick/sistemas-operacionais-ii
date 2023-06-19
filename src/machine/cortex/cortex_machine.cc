@@ -9,7 +9,7 @@ void Machine::panic()
 {
     CPU::int_disable();
     if(Traits<Display>::enabled)
-        Display::puts("\nPANIC!\n");
+        Display::puts("PANIC!\n");
     if(Traits<System>::reboot)
         reboot();
     else

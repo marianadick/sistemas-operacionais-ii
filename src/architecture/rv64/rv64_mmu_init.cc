@@ -1,23 +1,24 @@
 // EPOS RISC-V 64 MMU Mediator Initialization
 
 #include <architecture/mmu.h>
-#include <system.h>
 
-#ifdef __sifive_u__
+// extern "C" void * __data_start;
+extern "C" void * _edata;
+extern "C" void * __bss_start;
+extern "C" void * _end;
 
 __BEGIN_SYS
 
-void SV39_MMU::init()
+void MMU::init()
 {
     db<Init, MMU>(TRC) << "MMU::init()" << endl;
 
-    free(System::info()->pmm.free1_base, pages(System::info()->pmm.free1_top - System::info()->pmm.free1_base));
+//    db<Init, MMU>(INF) << "MMU::init::dat.b=" << &__data_start << ",dat.e=" << &_edata << ",bss.b=" << &__bss_start << ",bss.e=" << &_end << endl;
 
-    // Remember the master page directory (created during SETUP)
-    _master = current();
-    db<Init, MMU>(INF) << "MMU::master page directory=" << _master << endl;
+    // For machines that do not feature a real MMU, frame size = 1 byte
+    // TODO: The stack left at the top of the memory for INIT is freed at Thread::init()
+    free(&_end, pages(Memory_Map::SYS_STACK - CPU::Log_Addr(&_end)));
 }
 
 __END_SYS
 
-#endif

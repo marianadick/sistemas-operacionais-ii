@@ -50,9 +50,11 @@ DISK_SECT_SIZE =         512
 ELF_HDR_SIZE =           XXX
 
 ; DISK IMAGE LAYOUT 
+; -+-----------------------+ DISK_IMAGE_SYS_INFO 
+;  | SYS_INFO (512 bytes)  | 
 ; -+-----------------------+ DISK_IMAGE_SETUP 
 ;  | SETUP                 | 
-;  :            (SYS_INFO) : 
+;  :                       : 
 ; -+-----------------------+ 
 ;  | SYSTEM                | 
 ;  :                       : 
@@ -73,7 +75,10 @@ ELF_HDR_SIZE =           XXX
 ; -+-----------------------+ 
 ; BOOT IMAGE LAYOUT 
 ; System Information 
-DISK_IMAGE_SETUP =       DISK_IMAGE
+DISK_IMAGE_SYS_INFO =    DISK_IMAGE
+
+; System Information 
+DISK_IMAGE_SETUP =       (DISK_IMAGE + DISK_SECT_SIZE)
 
 ; SETUP entry point 
 SETUP_ENTRY =            (DISK_IMAGE_SETUP + ELF_HDR_SIZE)
@@ -83,6 +88,7 @@ SETUP_ENTRY =            (DISK_IMAGE_SETUP + ELF_HDR_SIZE)
 ;==============================================================================
 ; 8086 segment addresses
 IMAGE_SEG       = DISK_IMAGE >> 4
+INFO_SEG        = DISK_IMAGE_SYS_INFO >> 4
 	
 .text
      
@@ -131,8 +137,8 @@ main:
 ;		pop	ds
 
 ; Say hello;
-;		mov	si,#msg_hello
-;		call	print_msg
+		mov	si,#msg_hello
+		call	print_msg
 
 ; Enable A20 bus line
 		call	enable_a20

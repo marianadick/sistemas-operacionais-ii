@@ -9,14 +9,14 @@ __BEGIN_SYS
 
 GPIO * GPIO::_gpios[PORTS][8];
 
-void GPIO::int_handler(IC::Interrupt_Id i)
+void GPIO::int_handler(IC::Interrupt_Id id)
 {
     // GPIO interrupt handling is done at eoi, because some devices generate interrupts faster than the processor can handle
 }
 
-void GPIO::eoi(IC::Interrupt_Id i)
+void GPIO::eoi(IC::Interrupt_Id id)
 {
-    unsigned int port = i - IC::INT_GPIOA;
+    unsigned int port = id - IC::INT_GPIOA;
     PL061 * pl061 = new(reinterpret_cast<void *>(Memory_Map::GPIOA_BASE + port * 0x1000)) PL061;
     unsigned int mis = pl061->pending_regular_interrupts();
     unsigned int irq_detect_ack = pl061->pending_powerup_interrupts();

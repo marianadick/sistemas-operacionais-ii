@@ -1,6 +1,6 @@
 // EPOS RISC-V 32 Architecture Metainfo
-#ifndef __rv32_traits_h
-#define __rv32_traits_h
+#ifndef __riscv32_traits_h
+#define __riscv32_traits_h
 
 #include <system/config.h>
 
@@ -28,11 +28,6 @@ template<> struct Traits<FPU>: public Traits<Build>
 };
 
 template<> struct Traits<TSC>: public Traits<Build>
-{
-    static const bool enabled = true;
-};
-
-template<> struct Traits<PMU>: public Traits<Build>
 {
     static const bool enabled = true;
 };

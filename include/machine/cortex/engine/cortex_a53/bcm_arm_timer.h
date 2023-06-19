@@ -4,9 +4,10 @@
 #define __arm_timer_h
 
 #include <architecture/cpu.h>
-#define __timer_common_only__
+#define __common_only__
+#include <machine/rtc.h>
 #include <machine/timer.h>
-#undef __timer_common_only__
+#undef __common_only__
 
 __BEGIN_SYS
 
