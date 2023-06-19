@@ -14,7 +14,7 @@
 
 __BEGIN_SYS
 
-class eMote3: public Machine_Common
+class eMote3: private Machine_Common
 {
     friend Machine;
 
@@ -48,11 +48,8 @@ private:
 public:
     eMote3() {}
 
-    static void delay(const Microsecond & time) {
-        assert(Traits<TSC>::enabled);
-        TSC::Time_Stamp end = TSC::time_stamp() + Convert::us2count<TSC::Time_Stamp, Microsecond>(TSC::frequency(), time);
-        while(end > TSC::time_stamp());
-    }
+    using Machine_Common::delay;
+    using Machine_Common::clear_bss;
 
     static void reboot() {
         // call ROM function to reboot
@@ -64,10 +61,6 @@ public:
 
     static const UUID & uuid() { return *reinterpret_cast<const UUID *>(IEEE_ADDR); }
     
-    static void smp_barrier() {}
-
-    static void smp_barrier_init(unsigned int n_cpus) { assert(n_cpus == 1); }
-
     static void power(const Power_Mode & mode) {
         // Change in power mode will only be effective when ASM("wfi") is executed
         switch(mode) {

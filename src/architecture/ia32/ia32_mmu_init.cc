@@ -11,7 +11,7 @@ void MMU::init()
 
     System_Info * si = System::info();
 
-    db<Init, MMU>(INF) << "MMU::memory={base=" << reinterpret_cast<void *>(si->pmm.mem_base) << ",size="
+    db<Init, MMU>(INF) << "MMU::memory={base=" << reinterpret_cast<void *>(si->bm.mem_base) << ",size="
                        << (si->bm.mem_top - si->bm.mem_base) / 1024 << "KB}" << endl;
     db<Init, MMU>(INF) << "MMU::free1={base=" << reinterpret_cast<void *>(si->pmm.free1_base) << ",size="
                        << (si->pmm.free1_top - si->pmm.free1_base) / 1024 << "KB}" << endl;
@@ -66,26 +66,26 @@ void MMU::init()
                 f3b = f3t = 0;
             }
         }
-        if((size > 0) || (_free[WHITE].grouped_size() * MMU::PAGE_SIZE < Traits<System>::HEAP_SIZE))
+        if((size > 0) || (_free[WHITE].grouped_size() * sizeof(Page) < Traits<System>::HEAP_SIZE))
             db<Init, MMU>(ERR) << "MMU::int: System's heap size (Traits<System>::HEAP_SIZE=" << Traits<System>::HEAP_SIZE << ") is larger than memory!" << endl;
 
         // Insert the remaining free memory into the _free[color] lists
         int frame = f1b;
         while(frame < f1t) {
             free(frame);
-            frame += MMU::PAGE_SIZE;
+            frame += sizeof(Page);
         }
 
         frame = f2b;
         while(frame < f2t) {
             free(frame);
-            frame += MMU::PAGE_SIZE;
+            frame += sizeof(Page);
         }
 
         frame = f3b;
         while(frame < f3t) {
             free(frame);
-            frame += MMU::PAGE_SIZE;
+            frame += sizeof(Page);
         }
     } else {
         // Insert all free memory into the _free[WHITE] list
@@ -95,8 +95,7 @@ void MMU::init()
     }
 
     // Remember the master page directory (created during SETUP)
-    _master = reinterpret_cast<Page_Directory *>(CPU::pdp());
-
+    _master = current();
     db<Init, MMU>(INF) << "MMU::master page directory=" << _master << endl;
 }
 

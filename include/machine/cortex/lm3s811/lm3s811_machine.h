@@ -12,7 +12,7 @@
 
 __BEGIN_SYS
 
-class LM3S811: public Machine_Common
+class LM3S811: private Machine_Common
 {
     friend Machine;
 
@@ -23,20 +23,13 @@ private:
 public:
     LM3S811() {}
 
-    static void delay(const Microsecond & time) {
-        assert(Traits<TSC>::enabled);
-        TSC::Time_Stamp end = TSC::time_stamp() + time * (TSC::frequency() / 1000000);
-        while(end > TSC::time_stamp());
-    }
+    using Machine_Common::delay;
+    using Machine_Common::clear_bss;
 
     static void reboot() { scb()->reboot(); }
     static void poweroff() { reboot(); }
 
     static const UUID & uuid() { return System::info()->bm.uuid; } // TODO: System_Info is not populated in this machine
-
-    static void smp_barrier() {}
-
-    static void smp_barrier_init(unsigned int n_cpus) { assert(n_cpus == 1); }
 
     static void power(const Power_Mode & mode) {}
     

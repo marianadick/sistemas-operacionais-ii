@@ -127,21 +127,21 @@ namespace List_Elements
         typedef Singly_Linked_Grouping Element;
 
     public:
-        Singly_Linked_Grouping(const T * o, int s): _object(o), _size(s), _next(0) {}
+        Singly_Linked_Grouping(const T * o, unsigned long s): _object(o), _size(s), _next(0) {}
 
         T * object() const { return const_cast<T *>(_object); }
 
         Element * next() const { return _next; }
         void next(Element * e) { _next = e; }
 
-        unsigned int size() const { return _size; }
-        void size(unsigned int l) { _size = l; }
-        void shrink(unsigned int n) { _size -= n; }
-        void expand(unsigned int n) { _size += n; }
+        unsigned long size() const { return _size; }
+        void size(unsigned long l) { _size = l; }
+        void shrink(unsigned long n) { _size -= n; }
+        void expand(unsigned long n) { _size += n; }
 
     private:
         const T * _object;
-        unsigned int _size;
+        unsigned long _size;
         Element * _next;
     };
 
@@ -241,7 +241,7 @@ namespace List_Elements
         typedef Doubly_Linked_Grouping Element;
 
     public:
-        Doubly_Linked_Grouping(const T * o, int s): _object(o), _size(s), _prev(0), _next(0) {}
+        Doubly_Linked_Grouping(const T * o, unsigned long s): _object(o), _size(s), _prev(0), _next(0) {}
 
         T * object() const { return const_cast<T *>(_object); }
 
@@ -250,14 +250,14 @@ namespace List_Elements
         void prev(Element * e) { _prev = e; }
         void next(Element * e) { _next = e; }
 
-        unsigned int size() const { return _size; }
-        void size(unsigned int l) { _size = l; }
-        void shrink(unsigned int n) { _size -= n; }
-        void expand(unsigned int n) { _size += n; }
+        unsigned long size() const { return _size; }
+        void size(unsigned long l) { _size = l; }
+        void shrink(unsigned long n) { _size -= n; }
+        void expand(unsigned long n) { _size += n; }
 
     private:
         const T * _object;
-        unsigned int _size;
+        unsigned long _size;
         Element * _prev;
         Element * _next;
     };
@@ -342,7 +342,7 @@ public:
     Simple_List(): _size(0), _head(0), _tail(0) {}
 
     bool empty() const { return (_size == 0); }
-    unsigned int size() const { return _size; }
+    unsigned long size() const { return _size; }
 
     Element * head() { return _head; }
     Element * tail() { return _tail; }
@@ -448,7 +448,7 @@ protected:
     }
 
 private:
-    unsigned int _size;
+    unsigned long _size;
     Element * _head;
     Element * _tail;
 };
@@ -582,9 +582,9 @@ public:
     using Base::search;
     using Base::remove;
 
-    unsigned int grouped_size() const { return _grouped_size; }
+    unsigned long grouped_size() const { return _grouped_size; }
 
-    Element * search_size(unsigned int s) {
+    Element * search_size(unsigned long s) {
         Element * e = head();
         if(sizeof(Object_Type) < sizeof(Element))
             for(; e && (e->size() < sizeof(Element) / sizeof(Object_Type) + s) && (e->size() != s); e = e->next());
@@ -610,7 +610,7 @@ public:
             insert_tail(e);
     }
 
-    Element * search_decrementing(unsigned int s) {
+    Element * search_decrementing(unsigned long s) {
         Element * e = search_size(s);
         if(e) {
             e->shrink(s);
@@ -629,7 +629,7 @@ private:
     }
 
 private:
-    unsigned int _grouped_size;
+    unsigned long _grouped_size;
 };
 
 
@@ -647,7 +647,7 @@ public:
     List(): _size(0), _head(0), _tail(0) {}
 
     bool empty() const { return (_size == 0); }
-    unsigned int size() const { return _size; }
+    unsigned long size() const { return _size; }
 
     Element * head() { return _head; }
     Element * tail() { return _tail; }
@@ -873,7 +873,7 @@ protected:
     }
 
 private:
-    unsigned int _size;
+    unsigned long _size;
     Element * _head;
     Element * _tail;
 };
@@ -1243,9 +1243,9 @@ public:
 
     bool empty() const { return _list[R::current_queue()].empty(); }
 
-    unsigned int size() const { return _list[R::current_queue()].size(); }
-    unsigned int total_size() const {
-        unsigned int s = 0;
+    unsigned long size() const { return _list[R::current_queue()].size(); }
+    unsigned long total_size() const {
+        unsigned long s = 0;
         for(unsigned int i = 0; i < Q; i++)
             s += _list[i].size();
         return s;
@@ -1344,9 +1344,9 @@ public:
     using Base::print_head;
     using Base::print_tail;
 
-    unsigned int grouped_size() const { return _grouped_size; }
+    unsigned long grouped_size() const { return _grouped_size; }
 
-    Element * search_size(unsigned int s) {
+    Element * search_size(unsigned long s) {
         Element * e = head();
         if(sizeof(Object_Type) < sizeof(Element))
             for(; e && (e->size() < sizeof(Element) / sizeof(Object_Type) + s) && (e->size() != s); e = e->next());
@@ -1376,7 +1376,7 @@ public:
         }
     }
 
-    Element * search_decrementing(unsigned int s) {
+    Element * search_decrementing(unsigned long s) {
         db<Lists>(TRC) << "Grouping_List::search_decrementing(s=" << s << ")" << endl;
         print_head();
         print_tail();
@@ -1400,7 +1400,7 @@ private:
     }
 
 private:
-    unsigned int _grouped_size;
+    unsigned long _grouped_size;
 };
 
 __END_UTIL

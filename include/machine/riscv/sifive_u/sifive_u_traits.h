@@ -1,67 +1,74 @@
-// EPOS RISC-V Sifive Metainfo and Configuration
+// EPOS SiFive-U (RISC-V) Metainfo and Configuration
 
-#ifndef __riscv_sifive_traits_h
-#define __riscv_sifive_traits_h
+#ifndef __riscv_sifive_u_traits_h
+#define __riscv_sifive_u_traits_h
 
 #include <system/config.h>
 
 __BEGIN_SYS
 
 class Machine_Common;
-template<> struct Traits<Machine_Common>: public Traits<Build> {};
-
-template <> struct Traits<Machine>: public Traits<Machine_Common>
+template<> struct Traits<Machine_Common>: public Traits<Build>
 {
-    static const bool cpus_use_local_timer      = false;
+protected:
+    static const bool library = (Traits<Build>::MODE == Traits<Build>::LIBRARY);
+};
 
-    static const unsigned int NOT_USED          = 0xffffffff;
-    static const unsigned int CPUS              = Traits<Build>::CPUS;
+template<> struct Traits<Machine>: public Traits<Machine_Common>
+{
+public:
+    // Value to be used for undefined addresses
+    static const unsigned long NOT_USED         = -1UL;
 
-    // Boot Image
-    static const unsigned int BOOT_LENGTH_MIN   = NOT_USED;
-    static const unsigned int BOOT_LENGTH_MAX   = NOT_USED;
+    // Clocks
+    static const unsigned long CLOCK            = 1000000000;                                   // CORECLK
+    static const unsigned long HFCLK            =   33330000;                                   // FU540-C000 generates all internal clocks from 33.33 MHz hfclk driven from an external oscillator (HFCLKIN) or crystal (HFOSCIN) input, selected by input HFXSEL.
+    static const unsigned long RTCCLK           =    1000000;                                   // The CPU real time clock (rtcclk) runs at 1 MHz and is driven from input pin RTCCLKIN. This should be connected to an external oscillator.
+    static const unsigned long TLCLK            = CLOCK / 2;                                    // L2 cache and peripherals such as UART, SPI, I2C, and PWM operate in a single clock domain (tlclk) running at coreclk/2 rate. There is a low-latency 2:1 crossing between coreclk and tlclk domains.
 
     // Physical Memory
-    static const unsigned int MEM_BASE          = 0x80000000;
-    static const unsigned int VECTOR_TABLE      = 0x00010000; // Defined by uboot@QEMU FIXME = Check this
-    static const unsigned int PAGE_TABLES       = 0x87f00000; // MEM_TOP - 16 MB
-    static const unsigned int MEM_TOP           = 0x87ffffff; // 128 MB
-    static const unsigned int BOOT_STACK        = 0x87effffc; // MEM_TOP - sizeof(int) - 1M for boot stacks
+    static const unsigned long RAM_BASE         = 0x80000000;                                   // 2 GB
+    static const unsigned long RAM_TOP          = 0x87ffffff;                                   // 2 GB + 128 MB (max 256 GB of RAM + MIO)
+    static const unsigned long MIO_BASE         = 0x00000000;
+    static const unsigned long MIO_TOP          = 0x1fffffff;                                   // 512 MB
 
-    // Logical Memory Map
-    static const unsigned int BOOT              = NOT_USED;
-    static const unsigned int SETUP             = NOT_USED;
-    static const unsigned int INIT              = NOT_USED;
+    // Physical Memory at Boot
+    static const unsigned long BOOT             = NOT_USED;
+    static const unsigned long SETUP            = library ? NOT_USED : RAM_BASE;                // RAM_BASE (will be part of the free memory at INIT, using a logical address identical to physical eliminate SETUP relocation)
+    static const unsigned long IMAGE            = 0x80100000;                                   // RAM_BASE + 1 MB (will be part of the free memory at INIT, defines the maximum image size; if larger than 3 MB then adjust at SETUP)
 
-    static const unsigned int APP_LOW           = 0x80000000;
-    static const unsigned int APP_CODE          = 0x80000000;
-    static const unsigned int APP_DATA          = 0x80000000;
-    static const unsigned int APP_HIGH          = 0x87ffffff;
+    // Logical Memory
+#ifdef __rv32__
+    static const unsigned long APP_LOW          = library ? RAM_BASE : 0x20000000;              // 512 MB
+    static const unsigned long APP_HIGH         = library ? RAM_TOP  : RAM_BASE - 1;            // 2GB
 
-    static const unsigned int PHY_MEM           = 0x80000000; // 2 GB
-    static const unsigned int IO_BASE           = 0x40000000; // 4 GB - 256 MB
-    static const unsigned int IO_TOP            = 0x7fffffff; // 4 GB - 12 MB
+    static const unsigned long APP_CODE         = APP_LOW;
+    static const unsigned long APP_DATA         = APP_CODE + 4 * 1024 * 1024;                   // APP_CODE + 4 MB
 
-    static const unsigned int SYS               = IO_TOP;     // 4 GB - 12 MB
-    static const unsigned int SYS_CODE          = 0x80000000;
-    static const unsigned int SYS_DATA          = 0x80000000;
+    static const unsigned long PHY_MEM          = RAM_BASE;                                     // 2 GB (max 1536 MB of RAM)
+    static const unsigned long IO               = 0x00000000;                                   // 0 (max 512 MB of IO = MIO_TOP - MIO_BASE)
+    static const unsigned long SYS              = 0xff800000;                                   // 4 GB - 16 MB
+#else
+    static const unsigned long APP_LOW          = library ? RAM_BASE : 0xffffffc000000000;      // 256 GB ((highest address + 1) / 2 [RV64 uses sign-extended addresses, so this is 0x0000004000000000])
+    static const unsigned long APP_HIGH         = 0xffffffffffffffff;                           // 512 GB (highest address)
+
+    static const unsigned long APP_CODE         = APP_LOW;
+    static const unsigned long APP_DATA         = APP_CODE + 4 * 1024 * 1024;                   // APP_CODE + 4 MB
+
+    static const unsigned long PHY_MEM          = RAM_BASE;                                     // 2 GB (max 256 GB of RAM)
+    static const unsigned long IO               = 0x0000000000000000;                           // 0 (max 512 MB of IO = MIO_TOP - MIO_BASE)
+    static const unsigned long SYS              = 0x0000000020000000;                           // 128 GB
+#endif
 
     // Default Sizes and Quantities
-    static const unsigned int STACK_SIZE        = 16 * 1024;
-    static const unsigned int HEAP_SIZE         = 16 * 1024 * 1024;
-    static const unsigned int MAX_THREADS       = 16;
-
-    // PLL clocks
-    static const unsigned int IO_PLL_CLOCK      = 22729000;
-    static const unsigned int TIMER_CLOCK       = 100000000;
+    static const unsigned int MAX_THREADS       = 15;
+    static const unsigned int STACK_SIZE        = 256 * 1024;
+    static const unsigned int HEAP_SIZE         = 4 * 1024 * 1024;
 };
 
 template <> struct Traits<IC>: public Traits<Machine_Common>
 {
     static const bool debugged = hysterically_debugged;
-
-    static const unsigned int IRQS = 6;
-    static const unsigned int INTS = 16;
 };
 
 template <> struct Traits<Timer>: public Traits<Machine_Common>
@@ -69,6 +76,7 @@ template <> struct Traits<Timer>: public Traits<Machine_Common>
     static const bool debugged = hysterically_debugged;
 
     static const unsigned int UNITS = 1;
+    static const unsigned int CLOCK = Traits<Machine>::RTCCLK;
 
     // Meaningful values for the timer frequency range from 100 to 10000 Hz. The
     // choice must respect the scheduler time-slice, i. e., it must be higher
@@ -80,14 +88,26 @@ template <> struct Traits<UART>: public Traits<Machine_Common>
 {
     static const unsigned int UNITS = 2;
 
-    static const unsigned int CLOCK_DIVISOR = 16;
-    static const unsigned int CLOCK = Traits<Machine>::IO_PLL_CLOCK/CLOCK_DIVISOR;
+    static const unsigned int CLOCK = Traits<Machine>::TLCLK;
 
     static const unsigned int DEF_UNIT = 1;
     static const unsigned int DEF_BAUD_RATE = 115200;
     static const unsigned int DEF_DATA_BITS = 8;
     static const unsigned int DEF_PARITY = 0; // none
     static const unsigned int DEF_STOP_BITS = 1;
+};
+
+template <> struct Traits<SPI>: public Traits<Machine_Common>
+{
+    static const unsigned int UNITS = 3;
+
+    static const unsigned int CLOCK = Traits<Machine>::TLCLK;
+
+    static const unsigned int DEF_UNIT = 0;
+    static const unsigned int DEF_PROTOCOL = 0;
+    static const unsigned int DEF_MODE = 0;
+    static const unsigned int DEF_DATA_BITS = 8;
+    static const unsigned int DEF_BIT_RATE = 250000;
 };
 
 template<> struct Traits<Serial_Display>: public Traits<Machine_Common>
@@ -98,6 +118,11 @@ template<> struct Traits<Serial_Display>: public Traits<Machine_Common>
     static const int COLUMNS = 80;
     static const int LINES = 24;
     static const int TAB_SIZE = 8;
+};
+
+template<> struct Traits<Scratchpad>: public Traits<Machine_Common>
+{
+    static const bool enabled = false;
 };
 
 __END_SYS
