@@ -341,7 +341,7 @@ public:
         init_stack_helper(&ctx->_x10, an ...); // x10 is a0
         if (usp) {
             ksp -= sizeof(Context);
-            ctx = new (ksp) Context(&_int_leave, 0, 0); 
+            ctx = new (ksp) Context(&CPU::Context::first_dispatch, 0, 0); 
             ctx->_x10 = 0;   
         }
         return ctx;

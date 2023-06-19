@@ -317,7 +317,12 @@ public:
                 db<MMU>(WRN) << "MMU::Directory::detach(chunk=" << &chunk << ",addr=" << addr << ") [pt=" << chunk.pt() << "] failed!" << endl;
         }
 
-        Phy_Addr physical(Log_Addr addr);
+        Phy_Addr physical(Log_Addr addr) {
+            PD_Entry pde = (*_pd)[pdi(addr)];
+            Page_Table * pt = static_cast<Page_Table *>(pde2phy(pde));
+            PT_Entry pte = pt->log()[pti(addr)];
+            return pte | off(addr);
+        }
 
     private:
         bool attachable(Log_Addr addr, const Page_Table * pt, unsigned int pts, Page_Flags flags) {
