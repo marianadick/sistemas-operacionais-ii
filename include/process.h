@@ -212,6 +212,8 @@ public:
         }
 
         // Reflag and map segments
+        _cs->reflag(MMU::Flags::APPC);
+        _ds->reflag(MMU::Flags::APPD);
         _code = _as->attach(_cs, task->code());
         _data = _as->attach(_ds, task->data());
 

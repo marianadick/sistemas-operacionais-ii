@@ -123,6 +123,13 @@ public:
             }
         }
 
+        void reflag(int from, int to, Page_Flags flags) {
+            for( ; from < to; from++) {
+                Log_Addr * pte = phy2log(&_entry[from]);
+                *pte = phy2pte(pte2phy(_entry[from]), flags);
+            }
+        }
+
         friend OStream & operator<<(OStream & os, _Page_Table & pt) {
             os << "{\n";
             for(unsigned int i = 0; i < ENTRIES; i++)
@@ -196,6 +203,11 @@ public:
 
         Phy_Addr phy_address() const {
             return (_flags & Page_Flags::CT) ? Phy_Addr(unflag((*_pt)[_from])) : Phy_Addr(false);
+        }
+
+        void reflag(Flags flags) {
+            _flags = flags;
+            _pt->reflag(_from, _to, _flags);
         }
 
         unsigned long resize(long amount) {

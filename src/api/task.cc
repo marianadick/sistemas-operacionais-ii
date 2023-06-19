@@ -13,6 +13,8 @@ Task::~Task()
     while(!_threads.empty())
         delete _threads.remove()->object();
 
+    delete _cs;
+    delete _ds;
     delete _as;
 }
 
